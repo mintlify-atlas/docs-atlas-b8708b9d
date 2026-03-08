@@ -1,0 +1,156 @@
+{
+  "projectType": "framework",
+  "projectName": "Lyger PHP Framework",
+  "projectDescription": "A high-performance PHP framework with Rust FFI integration for blazing-fast execution and zero-copy database operations.",
+  "theme": "aspen",
+  "primaryColor": "#FF6B35",
+  "lightColor": "#FFB84D",
+  "darkColor": "#C44D2E",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "core/architecture",
+              "core/rust-ffi",
+              "core/always-alive-server",
+              "core/zero-copy-database"
+            ]
+          },
+          {
+            "group": "Routing",
+            "pages": [
+              "routing/basic-routing",
+              "routing/route-parameters",
+              "routing/middleware"
+            ]
+          },
+          {
+            "group": "Database",
+            "pages": [
+              "database/getting-started",
+              "database/query-builder",
+              "database/eloquent-models",
+              "database/migrations",
+              "database/relationships"
+            ]
+          },
+          {
+            "group": "Frontend",
+            "pages": [
+              "frontend/livewire",
+              "frontend/components",
+              "frontend/blade-templates"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/cache",
+              "advanced/events",
+              "advanced/api-resources",
+              "advanced/admin-dashboard",
+              "advanced/websockets",
+              "advanced/jobs"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "cli/overview",
+              "cli/serve",
+              "cli/make-controller",
+              "cli/make-model",
+              "cli/make-migration",
+              "cli/migrate",
+              "cli/make-auth",
+              "cli/make-dash"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core",
+            "pages": [
+              "api/engine",
+              "api/router",
+              "api/request",
+              "api/response"
+            ]
+          },
+          {
+            "group": "Database",
+            "pages": [
+              "api/model",
+              "api/query-builder",
+              "api/schema",
+              "api/migration"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "api/livewire",
+              "api/component",
+              "api/cache",
+              "api/events"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Rust FFI Integration for high-performance operations",
+    "Always-Alive Server with persistent PHP worker",
+    "Zero-Copy Database with direct memory access",
+    "Eloquent ORM inspired by Laravel",
+    "Livewire-style reactive components",
+    "Built-in admin dashboard generator",
+    "CLI scaffold commands for rapid development",
+    "Support for SQLite, PostgreSQL, MySQL, MariaDB",
+    "Middleware system for request processing",
+    "WebSocket support for real-time features",
+    "Event broadcasting system",
+    "Background job processing"
+  ],
+  "publicApiSurface": [
+    "Lyger\\Core\\Engine",
+    "Lyger\\Routing\\Route",
+    "Lyger\\Routing\\Router",
+    "Lyger\\Http\\Request",
+    "Lyger\\Http\\Response",
+    "Lyger\\Database\\Model",
+    "Lyger\\Database\\QueryBuilder",
+    "Lyger\\Database\\Schema",
+    "Lyger\\Database\\Migration",
+    "Lyger\\Livewire\\Component",
+    "Lyger\\Cache\\Cache",
+    "Lyger\\Events\\Event",
+    "Lyger\\Api\\Api",
+    "Lyger\\Api\\Resource",
+    "Lyger\\Admin\\Admin",
+    "Lyger\\Middleware\\Middleware",
+    "Lyger\\Jobs\\Job",
+    "Lyger\\WebSockets\\WebSocket"
+  ]
+}
