@@ -1,0 +1,181 @@
+---
+title: migrate:status
+description: Show the status of all migrations
+icon: list-check
+---
+
+The `migrate:status` command displays which migrations have been run and which are pending.
+
+## Syntax
+
+```bash
+php rawr migrate:status
+```
+
+## Basic Usage
+
+Check migration status:
+
+```bash
+php rawr migrate:status
+```
+
+**Output:**
+
+```
+Migration status for: sqlite
+
++------+------------------------------------------+-------+
+| Ran? | Migration                                | Batch |
++------+------------------------------------------+-------+
+| Yes  | 2026_03_08_120000_create_users_table     | 1     |
+| Yes  | 2026_03_08_120500_create_posts_table     | 1     |
+| Yes  | 2026_03_08_130000_add_status_to_users    | 2     |
+| No   | 2026_03_08_140000_create_orders_table    | -     |
+| No   | 2026_03_08_140500_create_products_table  | -     |
++------+------------------------------------------+-------+
+
+Pending migrations: 2
+```
+
+## Understanding the Output
+
+The status table shows:
+
+- **Ran?** - Whether the migration has been executed (Yes/No)
+- **Migration** - The migration file name (timestamp and description)
+- **Batch** - The batch number when it was run (or `-` if pending)
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Check Before Deploy" icon="check">
+    Verify which migrations will run in production
+  </Card>
+  <Card title="Debug Issues" icon="bug">
+    Identify missing or failed migrations
+  </Card>
+  <Card title="Team Coordination" icon="users">
+    See what migrations teammates have added
+  </Card>
+  <Card title="Environment Sync" icon="server">
+    Compare migration state across environments
+  </Card>
+</CardGroup>
+
+## Migration States
+
+### Ran Migrations
+
+Migrations marked "Yes" have been successfully executed and recorded in the `migrations` table. These will not run again when you execute `php rawr migrate`.
+
+### Pending Migrations
+
+Migrations marked "No" are pending and will be executed the next time you run `php rawr migrate`. All pending migrations will run in a single batch.
+
+## Common Workflow
+
+```bash
+# Pull latest code with new migrations
+git pull origin main
+
+# Check what's new
+php rawr migrate:status
+
+# See pending migrations
+# Pending migrations: 3
+
+# Run the pending migrations
+php rawr migrate
+
+# Verify everything ran
+php rawr migrate:status
+
+# All migrations should show "Yes"
+```
+
+## Deployment Checklist
+
+Use `migrate:status` as part of your deployment workflow:
+
+<Steps>
+  <Step title="Check Status Locally">
+    ```bash
+    php rawr migrate:status
+    ```
+    Verify no pending migrations exist locally
+  </Step>
+  
+  <Step title="Deploy Code">
+    Push your code to production server
+  </Step>
+  
+  <Step title="Check Status on Server">
+    ```bash
+    ssh production
+    cd /var/www/app
+    php rawr migrate:status
+    ```
+    See which migrations need to run
+  </Step>
+  
+  <Step title="Run Migrations">
+    ```bash
+    php rawr migrate
+    ```
+    Execute pending migrations
+  </Step>
+  
+  <Step title="Verify Success">
+    ```bash
+    php rawr migrate:status
+    ```
+    Confirm all migrations ran successfully
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<Accordion title="Migrations show as pending but files don't exist">
+  Your `migrations` table may be out of sync. Check the `database/migrations/` directory and ensure all recorded migrations exist as files.
+</Accordion>
+
+<Accordion title="Migration ran but shows as pending">
+  The migration may have failed partway through. Check the `migrations` table in your database to see if it was recorded. You may need to manually rollback or complete the migration.
+</Accordion>
+
+<Accordion title="Different status between environments">
+  Ensure all migration files are committed to version control. Use `git log database/migrations/` to see migration file history and sync across environments.
+</Accordion>
+
+## Database Configuration
+
+The command uses your `.env` database configuration:
+
+```env .env
+DB_CONNECTION=sqlite
+DB_DATABASE=database/database.sqlite
+```
+
+The status command works with all supported databases:
+- SQLite
+- PostgreSQL  
+- MySQL
+- MariaDB
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="migrate" icon="arrow-up" href="/cli/migrate">
+    Run pending migrations
+  </Card>
+  <Card title="migrate:rollback" icon="arrow-rotate-left" href="/cli/migrate-rollback">
+    Rollback last batch
+  </Card>
+  <Card title="make:migration" icon="plus" href="/cli/make-migration">
+    Create new migrations
+  </Card>
+  <Card title="Migration System" icon="book" href="/database/migrations">
+    Learn about migrations
+  </Card>
+</CardGroup>

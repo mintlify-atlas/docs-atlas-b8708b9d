@@ -1,0 +1,119 @@
+---
+title: migrate:rollback
+description: Rollback the last batch of database migrations
+icon: arrow-rotate-left
+---
+
+The `migrate:rollback` command reverts the last batch of database migrations that were run.
+
+## Syntax
+
+```bash
+php rawr migrate:rollback
+```
+
+## Basic Usage
+
+Rollback the last migration batch:
+
+```bash
+php rawr migrate:rollback
+```
+
+**Output:**
+
+```
+Rolling back...
+Rolled back: 2026_03_08_143045_create_products_table
+Rolled back: 2026_03_08_143022_create_users_table
+Rollback complete!
+```
+
+## How It Works
+
+The rollback command:
+
+1. **Reads Migration History** - Queries the `migrations` table to find the last batch number
+2. **Runs Down Methods** - Executes the `down()` method of each migration in reverse order
+3. **Removes Records** - Deletes the migration records from the `migrations` table
+
+<Warning>
+Rollback operations are destructive and will drop tables and delete data. Always backup your database before rolling back migrations in production.
+</Warning>
+
+## Migration Batches
+
+Migrations are organized into batches. Each time you run `php rawr migrate`, all pending migrations are executed as a single batch. The `migrate:rollback` command reverts one batch at a time.
+
+### Example
+
+```bash
+# Run migrations (batch 1)
+php rawr migrate
+
+# Add more migrations
+php rawr make:migration create_orders_table
+
+# Run new migrations (batch 2)
+php rawr migrate
+
+# Rollback batch 2 only
+php rawr migrate:rollback
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Development Testing" icon="flask">
+    Test your down() migration methods during development
+  </Card>
+  <Card title="Fix Migration Errors" icon="wrench">
+    Rollback and fix migrations that were deployed with errors
+  </Card>
+  <Card title="Database Reset" icon="rotate">
+    Combined with migrate, reset your database to a clean state
+  </Card>
+  <Card title="Schema Changes" icon="table">
+    Revert schema changes that cause issues
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+- **Always implement `down()` methods** - Ensure all migrations can be rolled back
+- **Test rollbacks locally** - Verify your down() methods work before deploying
+- **Backup production data** - Always backup before rolling back in production
+- **Use version control** - Track migration files in git to coordinate with team
+
+## Common Workflow
+
+```bash
+# Create a new migration
+php rawr make:migration add_status_to_users
+
+# Run the migration
+php rawr migrate
+
+# Oops, there's an issue - rollback
+php rawr migrate:rollback
+
+# Fix the migration file, then re-run
+php rawr migrate
+```
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="migrate" icon="arrow-up" href="/cli/migrate">
+    Run pending migrations
+  </Card>
+  <Card title="migrate:status" icon="list-check" href="/cli/migrate-status">
+    Check migration status
+  </Card>
+  <Card title="make:migration" icon="plus" href="/cli/make-migration">
+    Create new migrations
+  </Card>
+  <Card title="Migration API" icon="book" href="/api/migration">
+    Migration class reference
+  </Card>
+</CardGroup>

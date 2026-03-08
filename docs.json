@@ -91,6 +91,8 @@
               "cli/make-model",
               "cli/make-migration",
               "cli/migrate",
+              "cli/migrate-rollback",
+              "cli/migrate-status",
               "cli/make-auth",
               "cli/make-dash"
             ]
