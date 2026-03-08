@@ -1,0 +1,713 @@
+---
+title: 'Schema'
+description: 'Database schema builder for creating and modifying tables'
+---
+
+## Overview
+
+The `Schema` class provides a fluent interface for creating and modifying database tables. It works with a `Blueprint` class to define table structures with methods inspired by Laravel's schema builder.
+
+## Class Reference
+
+### Lyger\Database\Schema
+
+Schema builder for database table operations.
+
+**Location:** `Lyger/Database/Schema.php`
+
+## Schema Methods
+
+### Constructor
+
+```php
+public function __construct(?string $driver = null)
+```
+
+Create a new Schema instance.
+
+<ParamField path="driver" type="string" optional>
+Database driver ('sqlite', 'mysql', 'pgsql'). Auto-detected if not provided.
+</ParamField>
+
+**Example:**
+```php
+$schema = new Schema();
+// or with explicit driver
+$schema = new Schema('sqlite');
+```
+
+### create()
+
+```php
+public function create(string $table, callable $callback): void
+```
+
+Create a new database table.
+
+<ParamField path="table" type="string" required>
+Name of the table to create
+</ParamField>
+
+<ParamField path="callback" type="callable" required>
+Closure that receives a Blueprint instance
+</ParamField>
+
+**Example:**
+```php
+$schema->create('users', function ($table) {
+    $table->id();
+    $table->string('name');
+    $table->string('email')->unique();
+    $table->timestamps();
+});
+```
+
+### table()
+
+```php
+public function table(string $table, callable $callback): void
+```
+
+Modify an existing database table.
+
+<ParamField path="table" type="string" required>
+Name of the table to modify
+</ParamField>
+
+<ParamField path="callback" type="callable" required>
+Closure that receives a Blueprint instance
+</ParamField>
+
+**Example:**
+```php
+$schema->table('users', function ($table) {
+    $table->string('phone')->nullable();
+    $table->integer('age');
+});
+```
+
+### drop()
+
+```php
+public function drop(string $table): void
+```
+
+Drop a database table.
+
+<ParamField path="table" type="string" required>
+Name of the table to drop
+</ParamField>
+
+**Example:**
+```php
+$schema->drop('old_users');
+```
+
+### dropIfExists()
+
+```php
+public function dropIfExists(string $table): void
+```
+
+Drop a table if it exists.
+
+<ParamField path="table" type="string" required>
+Name of the table to drop
+</ParamField>
+
+**Example:**
+```php
+$schema->dropIfExists('users');
+```
+
+## Blueprint Class
+
+### Lyger\Database\Blueprint
+
+Fluent interface for defining table structure.
+
+**Location:** `Lyger/Database/Schema.php:186`
+
+## Column Types
+
+### id()
+
+```php
+public function id(string $column = 'id'): self
+```
+
+Create an auto-incrementing INTEGER primary key column.
+
+<ParamField path="column" type="string" default="'id'">
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->id(); // Creates 'id' column
+$table->id('user_id'); // Creates 'user_id' column
+```
+
+### bigId()
+
+```php
+public function bigId(string $column = 'id'): self
+```
+
+Create an auto-incrementing big INTEGER primary key column.
+
+<ParamField path="column" type="string" default="'id'">
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->bigId();
+```
+
+### string()
+
+```php
+public function string(string $column, int $length = 255): self
+```
+
+Create a VARCHAR column.
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+<ParamField path="length" type="int" default="255">
+Maximum string length
+</ParamField>
+
+**Example:**
+```php
+$table->string('name');
+$table->string('email', 100);
+```
+
+### text()
+
+```php
+public function text(string $column): self
+```
+
+Create a TEXT column.
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->text('description');
+$table->text('content');
+```
+
+### integer()
+
+```php
+public function integer(string $column, bool $unsigned = false): self
+```
+
+Create an INTEGER column.
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+<ParamField path="unsigned" type="bool" default="false">
+Whether the integer is unsigned
+</ParamField>
+
+**Example:**
+```php
+$table->integer('age');
+$table->integer('quantity', true); // unsigned
+```
+
+### bigInteger()
+
+```php
+public function bigInteger(string $column, bool $unsigned = false): self
+```
+
+Create a big INTEGER column.
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+<ParamField path="unsigned" type="bool" default="false">
+Whether the integer is unsigned
+</ParamField>
+
+**Example:**
+```php
+$table->bigInteger('population');
+```
+
+### decimal()
+
+```php
+public function decimal(string $column, int $precision = 8, int $scale = 2): self
+```
+
+Create a DECIMAL column (stored as REAL in SQLite).
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+<ParamField path="precision" type="int" default="8">
+Total number of digits
+</ParamField>
+
+<ParamField path="scale" type="int" default="2">
+Number of decimal places
+</ParamField>
+
+**Example:**
+```php
+$table->decimal('price', 10, 2);
+$table->decimal('tax_rate', 5, 3);
+```
+
+### float()
+
+```php
+public function float(string $column): self
+```
+
+Create a FLOAT column (stored as REAL in SQLite).
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->float('rating');
+```
+
+### boolean()
+
+```php
+public function boolean(string $column): self
+```
+
+Create a BOOLEAN column (stored as INTEGER in SQLite).
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->boolean('is_active');
+$table->boolean('email_verified');
+```
+
+### date()
+
+```php
+public function date(string $column): self
+```
+
+Create a DATE column.
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->date('birth_date');
+```
+
+### datetime()
+
+```php
+public function datetime(string $column): self
+```
+
+Create a DATETIME column.
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->datetime('published_at');
+```
+
+### timestamp()
+
+```php
+public function timestamp(string $column): self
+```
+
+Create a TIMESTAMP column.
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->timestamp('created_at');
+```
+
+### timestamps()
+
+```php
+public function timestamps(): self
+```
+
+Add `created_at` and `updated_at` TIMESTAMP columns.
+
+**Example:**
+```php
+$table->timestamps();
+// Equivalent to:
+// $table->timestamp('created_at');
+// $table->timestamp('updated_at');
+```
+
+### softDeletes()
+
+```php
+public function softDeletes(): self
+```
+
+Add a `deleted_at` TIMESTAMP column for soft deletes.
+
+**Example:**
+```php
+$table->softDeletes();
+```
+
+### json()
+
+```php
+public function json(string $column): self
+```
+
+Create a JSON column (stored as TEXT in SQLite).
+
+<ParamField path="column" type="string" required>
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->json('metadata');
+$table->json('settings');
+```
+
+### uuid()
+
+```php
+public function uuid(string $column = 'uuid'): self
+```
+
+Create a UUID column (36 character string).
+
+<ParamField path="column" type="string" default="'uuid'">
+Column name
+</ParamField>
+
+**Example:**
+```php
+$table->uuid();
+$table->uuid('external_id');
+```
+
+## Column Modifiers
+
+These methods modify the most recently defined column.
+
+### nullable()
+
+```php
+public function nullable(): self
+```
+
+Mark the column as nullable.
+
+**Example:**
+```php
+$table->string('middle_name')->nullable();
+$table->text('bio')->nullable();
+```
+
+### default()
+
+```php
+public function default(mixed $value): self
+```
+
+Set a default value for the column.
+
+<ParamField path="value" type="mixed" required>
+Default value
+</ParamField>
+
+**Example:**
+```php
+$table->boolean('is_active')->default(1);
+$table->string('status')->default('pending');
+$table->integer('count')->default(0);
+```
+
+### unsigned()
+
+```php
+public function unsigned(): self
+```
+
+Mark the integer column as unsigned.
+
+**Example:**
+```php
+$table->integer('age')->unsigned();
+```
+
+### primary()
+
+```php
+public function primary(): self
+```
+
+Mark the column as a primary key.
+
+**Example:**
+```php
+$table->string('uuid', 36)->primary();
+```
+
+### unique()
+
+```php
+public function unique(): self
+```
+
+Add a unique index to the column.
+
+**Example:**
+```php
+$table->string('email')->unique();
+$table->string('username', 50)->unique();
+```
+
+### index()
+
+```php
+public function index(array $columns = []): self
+```
+
+Add an index to the column(s).
+
+<ParamField path="columns" type="array" default="[]">
+Array of column names. If empty, indexes the last defined column.
+</ParamField>
+
+**Example:**
+```php
+$table->string('email')->index();
+$table->index(['user_id', 'created_at']); // Composite index
+```
+
+## Usage Examples
+
+### Creating a Users Table
+
+```php
+$schema = new Schema();
+
+$schema->create('users', function ($table) {
+    $table->id();
+    $table->string('name', 100);
+    $table->string('email')->unique();
+    $table->string('password');
+    $table->timestamp('email_verified_at')->nullable();
+    $table->boolean('is_active')->default(1);
+    $table->timestamps();
+    $table->softDeletes();
+});
+```
+
+### Creating a Posts Table with Foreign Key
+
+```php
+$schema->create('posts', function ($table) {
+    $table->id();
+    $table->integer('user_id')->unsigned();
+    $table->string('title');
+    $table->text('content');
+    $table->string('status')->default('draft');
+    $table->datetime('published_at')->nullable();
+    $table->timestamps();
+    
+    // Add indexes
+    $table->index(['user_id']);
+    $table->index(['status', 'published_at']);
+});
+```
+
+### Creating a Pivot Table
+
+```php
+$schema->create('role_user', function ($table) {
+    $table->integer('role_id')->unsigned();
+    $table->integer('user_id')->unsigned();
+    $table->timestamps();
+    
+    // Composite index for faster lookups
+    $table->index(['role_id', 'user_id']);
+});
+```
+
+### Adding Columns to Existing Table
+
+```php
+$schema->table('users', function ($table) {
+    $table->string('phone', 20)->nullable();
+    $table->date('birth_date')->nullable();
+    $table->json('preferences')->nullable();
+});
+```
+
+### Complex Table with All Column Types
+
+```php
+$schema->create('products', function ($table) {
+    $table->id();
+    $table->uuid('external_id')->unique();
+    $table->string('sku', 50)->unique();
+    $table->string('name');
+    $table->text('description')->nullable();
+    $table->decimal('price', 10, 2);
+    $table->float('rating')->nullable();
+    $table->integer('stock_quantity')->unsigned()->default(0);
+    $table->boolean('is_available')->default(1);
+    $table->json('attributes')->nullable();
+    $table->date('release_date')->nullable();
+    $table->timestamps();
+    $table->softDeletes();
+    
+    // Add indexes
+    $table->index(['is_available', 'stock_quantity']);
+});
+```
+
+### E-commerce Example
+
+```php
+$schema = new Schema();
+
+// Categories
+$schema->create('categories', function ($table) {
+    $table->id();
+    $table->string('name');
+    $table->string('slug')->unique();
+    $table->text('description')->nullable();
+    $table->integer('parent_id')->nullable();
+    $table->timestamps();
+});
+
+// Products
+$schema->create('products', function ($table) {
+    $table->id();
+    $table->integer('category_id')->unsigned();
+    $table->string('name');
+    $table->text('description');
+    $table->decimal('price', 10, 2);
+    $table->integer('stock')->unsigned()->default(0);
+    $table->boolean('featured')->default(0);
+    $table->timestamps();
+    
+    $table->index(['category_id']);
+    $table->index(['featured', 'created_at']);
+});
+
+// Orders
+$schema->create('orders', function ($table) {
+    $table->id();
+    $table->integer('user_id')->unsigned();
+    $table->decimal('total', 10, 2);
+    $table->string('status')->default('pending');
+    $table->json('shipping_address');
+    $table->datetime('shipped_at')->nullable();
+    $table->timestamps();
+    
+    $table->index(['user_id', 'status']);
+});
+```
+
+### Dropping Tables
+
+```php
+$schema = new Schema();
+
+// Drop if exists (safe)
+$schema->dropIfExists('old_products');
+
+// Direct drop
+$schema->drop('temporary_table');
+```
+
+## Column Type Reference
+
+<Expandable title="Complete Column Type List">
+
+| Method | SQL Type | Description |
+|--------|----------|-------------|
+| `id()` | INTEGER | Auto-incrementing primary key |
+| `bigId()` | INTEGER | Big auto-incrementing primary key |
+| `string()` | VARCHAR | Variable-length string |
+| `text()` | TEXT | Long text content |
+| `integer()` | INTEGER | Standard integer |
+| `bigInteger()` | INTEGER | Large integer |
+| `decimal()` | REAL | Fixed-point decimal |
+| `float()` | REAL | Floating-point number |
+| `boolean()` | INTEGER | Boolean (0 or 1) |
+| `date()` | TEXT | Date value |
+| `datetime()` | TEXT | Date and time |
+| `timestamp()` | TEXT | Timestamp |
+| `json()` | TEXT | JSON data |
+| `uuid()` | VARCHAR(36) | UUID string |
+
+</Expandable>
+
+## Best Practices
+
+<Note>
+- Use `id()` for most tables to create a standard auto-incrementing primary key
+- Always add `timestamps()` to track record creation and updates
+- Use `unique()` on columns that must have distinct values (emails, usernames, etc.)
+- Add `index()` to columns frequently used in WHERE clauses and JOINs
+- Use `nullable()` for optional fields
+- Use `default()` to set sensible defaults for columns
+- Use descriptive column names in snake_case
+</Note>
+
+## Database Drivers
+
+The Schema builder supports multiple database drivers:
+
+<Expandable title="Supported Drivers">
+- **SQLite** - Default driver, automatically detected if PDO SQLite extension is loaded
+- **MySQL** - Used if PDO MySQL extension is loaded
+- **PostgreSQL** - Used if PDO PostgreSQL extension is loaded
+
+The driver is auto-detected based on available PDO extensions, with SQLite as the fallback.
+</Expandable>
+
+## Related
+
+- [Model](/api/model) - Eloquent-style ORM models
+- [QueryBuilder](/api/query-builder) - Fluent query builder
+- [Migration](/api/migration) - Database migration system

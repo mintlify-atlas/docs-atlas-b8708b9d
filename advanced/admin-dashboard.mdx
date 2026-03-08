@@ -1,0 +1,592 @@
+---
+title: 'Admin Dashboard'
+description: 'Auto-generate beautiful admin panels for your models'
+---
+
+Lyger's Admin Dashboard system lets you quickly create fully-featured admin panels with CRUD operations, search, pagination, and a modern UI—all with minimal code.
+
+## Quick Start
+
+Create an admin controller by extending `AdminController`:
+
+```php
+use Lyger\Admin\AdminController;
+use App\Models\User;
+
+class UserAdminController extends AdminController
+{
+    protected string $model = User::class;
+    
+    protected array $columns = [
+        ['key' => 'id', 'label' => 'ID'],
+        ['key' => 'name', 'label' => 'Name'],
+        ['key' => 'email', 'label' => 'Email'],
+        ['key' => 'created_at', 'label' => 'Joined']
+    ];
+    
+    protected array $searchable = ['name', 'email'];
+    
+    protected array $fillable = ['name', 'email', 'password'];
+    
+    protected array $validationRules = [
+        'name' => 'required|min:3',
+        'email' => 'required|email',
+        'password' => 'required|min:8'
+    ];
+}
+```
+
+<Note>
+That's it! The `AdminController` automatically provides `index()`, `show()`, `store()`, `update()`, and `destroy()` methods with proper pagination, search, and validation.
+</Note>
+
+## Auto-Generated Features
+
+The admin controller provides these features out of the box:
+
+- **Listing**: Paginated table with search and sorting
+- **Create**: Form with validation
+- **Edit**: Update records with validation
+- **Delete**: Soft or hard delete with confirmation
+- **Search**: Full-text search across defined fields
+- **Sorting**: Click column headers to sort
+- **Pagination**: Navigate large datasets easily
+
+## Admin Panel Builder
+
+Use `AdminPanel` to generate a complete admin interface:
+
+```php
+use Lyger\Admin\AdminPanel;
+use App\Models\Post;
+
+$panel = AdminPanel::for(Post::class)
+    ->setTitle('Blog Posts')
+    ->setColumns([
+        ['key' => 'id', 'label' => 'ID'],
+        ['key' => 'title', 'label' => 'Title'],
+        ['key' => 'status', 'label' => 'Status'],
+        ['key' => 'author', 'label' => 'Author'],
+        ['key' => 'created_at', 'label' => 'Published']
+    ])
+    ->setActions(['create', 'edit', 'delete'])
+    ->setSidebar([
+        ['label' => 'Dashboard', 'url' => '/admin'],
+        ['label' => 'Posts', 'url' => '/admin/posts'],
+        ['label' => 'Users', 'url' => '/admin/users'],
+        ['label' => 'Settings', 'url' => '/admin/settings']
+    ])
+    ->setTheme('default');
+
+// Render the admin panel HTML
+echo $panel->render();
+```
+
+## Admin Methods
+
+### Index (List)
+
+Get paginated, searchable, sortable list:
+
+```php
+public function index(): array
+{
+    // GET /admin/users
+    // GET /admin/users?page=2
+    // GET /admin/users?search=john
+    // GET /admin/users?sort=name&dir=ASC
+    
+    return parent::index();
+}
+```
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "created_at": "2026-01-15"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 100,
+    "last_page": 7
+  }
+}
+```
+
+### Show (Detail)
+
+Get single record:
+
+```php
+public function show(int $id): array
+{
+    // GET /admin/users/123
+    return parent::show($id);
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "id": 123,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "created_at": "2026-01-15"
+  }
+}
+```
+
+### Store (Create)
+
+Create new record:
+
+```php
+public function store(array $data): array
+{
+    // POST /admin/users
+    // Body: {"name": "Jane", "email": "jane@example.com", "password": "secret123"}
+    
+    return parent::store($data);
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 124,
+    "name": "Jane",
+    "email": "jane@example.com"
+  },
+  "message": "Created successfully"
+}
+```
+
+### Update (Edit)
+
+Update existing record:
+
+```php
+public function update(int $id, array $data): array
+{
+    // PUT /admin/users/123
+    // Body: {"name": "John Smith"}
+    
+    return parent::update($id, $data);
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 123,
+    "name": "John Smith",
+    "email": "john@example.com"
+  },
+  "message": "Updated successfully"
+}
+```
+
+### Destroy (Delete)
+
+Delete record:
+
+```php
+public function destroy(int $id): array
+{
+    // DELETE /admin/users/123
+    
+    return parent::destroy($id);
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Deleted successfully"
+}
+```
+
+## Customization
+
+### Override Methods
+
+Customize behavior by overriding methods:
+
+<CodeGroup>
+
+```php Custom Index
+class UserAdminController extends AdminController
+{
+    public function index(): array
+    {
+        // Add custom logic
+        $users = User::where('is_active', true)
+            ->orderBy('created_at', 'DESC')
+            ->get();
+        
+        return [
+            'data' => array_map(fn($u) => $u->toArray(), $users),
+            'meta' => ['total' => count($users)]
+        ];
+    }
+}
+```
+
+```php Custom Store
+class UserAdminController extends AdminController
+{
+    public function store(array $data): array
+    {
+        // Hash password before saving
+        if (isset($data['password'])) {
+            $data['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
+        }
+        
+        // Add created_by field
+        $data['created_by'] = auth()->user()->id;
+        
+        return parent::store($data);
+    }
+}
+```
+
+```php Custom Update
+class UserAdminController extends AdminController
+{
+    public function update(int $id, array $data): array
+    {
+        // Don't allow email changes
+        unset($data['email']);
+        
+        // Hash password if provided
+        if (isset($data['password'])) {
+            $data['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
+        }
+        
+        return parent::update($id, $data);
+    }
+}
+```
+
+</CodeGroup>
+
+### Add Custom Actions
+
+Extend with custom methods:
+
+```php
+class UserAdminController extends AdminController
+{
+    // ... base configuration ...
+    
+    public function activate(int $id): array
+    {
+        $user = User::find($id);
+        
+        if (!$user) {
+            return ['error' => 'Not found', 'code' => 404];
+        }
+        
+        $user->is_active = true;
+        $user->save();
+        
+        return [
+            'success' => true,
+            'message' => 'User activated',
+            'data' => $user->toArray()
+        ];
+    }
+    
+    public function ban(int $id): array
+    {
+        $user = User::find($id);
+        
+        if (!$user) {
+            return ['error' => 'Not found', 'code' => 404];
+        }
+        
+        $user->is_banned = true;
+        $user->banned_at = date('Y-m-d H:i:s');
+        $user->save();
+        
+        return [
+            'success' => true,
+            'message' => 'User banned'
+        ];
+    }
+}
+```
+
+## Admin Theme
+
+The default admin theme provides a modern, responsive UI:
+
+### Features
+
+- **Dashboard**: KPI cards, charts, and metrics
+- **Data Table**: Sortable columns, search, pagination
+- **Forms**: Create and edit with validation
+- **Responsive**: Works on desktop, tablet, and mobile
+- **Dark Mode Ready**: Easy theme customization
+
+### Styling
+
+The theme uses Tailwind CSS and Font Awesome:
+
+```php
+AdminTheme::render([
+    'title' => 'Admin Panel',
+    'model' => User::class,
+    'columns' => [
+        ['key' => 'id', 'label' => 'ID'],
+        ['key' => 'name', 'label' => 'Name']
+    ],
+    'actions' => ['create', 'edit', 'delete'],
+    'sidebar' => [],
+    'theme' => 'default'
+]);
+```
+
+<Warning>
+The default theme generates a full HTML page with inline JavaScript. For SPA applications, use the API endpoints directly and build your own frontend.
+</Warning>
+
+## Complete Example
+
+Full admin setup for blog management:
+
+<CodeGroup>
+
+```php Admin Controller
+// App/Controllers/Admin/PostAdminController.php
+use Lyger\Admin\AdminController;
+use App\Models\Post;
+
+class PostAdminController extends AdminController
+{
+    protected string $model = Post::class;
+    
+    protected array $columns = [
+        ['key' => 'id', 'label' => 'ID'],
+        ['key' => 'title', 'label' => 'Title'],
+        ['key' => 'status', 'label' => 'Status'],
+        ['key' => 'views', 'label' => 'Views'],
+        ['key' => 'created_at', 'label' => 'Published']
+    ];
+    
+    protected array $searchable = ['title', 'content', 'tags'];
+    
+    protected array $fillable = [
+        'title', 'content', 'excerpt', 
+        'status', 'featured_image', 'tags'
+    ];
+    
+    protected array $validationRules = [
+        'title' => 'required|min:10|max:200',
+        'content' => 'required|min:100',
+        'status' => 'required|in:draft,published,archived'
+    ];
+    
+    public function publish(int $id): array
+    {
+        $post = Post::find($id);
+        
+        if (!$post) {
+            return ['error' => 'Post not found', 'code' => 404];
+        }
+        
+        $post->status = 'published';
+        $post->published_at = date('Y-m-d H:i:s');
+        $post->save();
+        
+        return [
+            'success' => true,
+            'message' => 'Post published',
+            'data' => $post->toArray()
+        ];
+    }
+}
+```
+
+```php Routes
+// routes/admin.php
+use App\Controllers\Admin\PostAdminController;
+
+Router::group('/admin/posts', function() {
+    Router::get('/', [PostAdminController::class, 'index']);
+    Router::get('/:id', [PostAdminController::class, 'show']);
+    Router::post('/', [PostAdminController::class, 'store']);
+    Router::put('/:id', [PostAdminController::class, 'update']);
+    Router::delete('/:id', [PostAdminController::class, 'destroy']);
+    
+    // Custom actions
+    Router::post('/:id/publish', [PostAdminController::class, 'publish']);
+});
+```
+
+```php Admin Panel
+// admin/posts/index.php
+use Lyger\Admin\AdminPanel;
+use App\Models\Post;
+
+$panel = AdminPanel::for(Post::class)
+    ->setTitle('Blog Posts')
+    ->setColumns([
+        ['key' => 'id', 'label' => 'ID'],
+        ['key' => 'title', 'label' => 'Title'],
+        ['key' => 'status', 'label' => 'Status'],
+        ['key' => 'views', 'label' => 'Views'],
+        ['key' => 'created_at', 'label' => 'Published']
+    ])
+    ->setActions(['create', 'edit', 'delete'])
+    ->setSidebar([
+        ['label' => 'Dashboard', 'url' => '/admin'],
+        ['label' => 'Posts', 'url' => '/admin/posts'],
+        ['label' => 'Categories', 'url' => '/admin/categories'],
+        ['label' => 'Users', 'url' => '/admin/users'],
+        ['label' => 'Settings', 'url' => '/admin/settings']
+    ]);
+
+echo $panel->render();
+```
+
+</CodeGroup>
+
+## Multi-Model Admin
+
+Manage multiple models in one dashboard:
+
+```php
+// admin/index.php
+$models = [
+    'Users' => [
+        'controller' => UserAdminController::class,
+        'icon' => 'users',
+        'count' => User::count()
+    ],
+    'Posts' => [
+        'controller' => PostAdminController::class,
+        'icon' => 'file-text',
+        'count' => Post::count()
+    ],
+    'Orders' => [
+        'controller' => OrderAdminController::class,
+        'icon' => 'shopping-cart',
+        'count' => Order::count()
+    ]
+];
+
+$dashboard = AdminPanel::for(User::class)
+    ->setTitle('Admin Dashboard')
+    ->setSidebar(array_map(function($name, $config) {
+        return [
+            'label' => $name,
+            'url' => '/admin/' . strtolower($name),
+            'icon' => $config['icon'],
+            'count' => $config['count']
+        ];
+    }, array_keys($models), $models));
+
+echo $dashboard->render();
+```
+
+## Performance Tips
+
+<Accordion title="Pagination">
+Always use pagination for large datasets:
+
+```php
+protected array $defaultPerPage = 25; // Default: 15
+
+public function index(): array
+{
+    $perPage = (int) ($_GET['per_page'] ?? $this->defaultPerPage);
+    $perPage = min($perPage, 100); // Cap at 100
+    
+    // Use paginate() instead of get()
+    $result = $this->model::query()->paginate($perPage);
+    
+    return $result;
+}
+```
+</Accordion>
+
+<Accordion title="Eager Loading">
+Load relationships to prevent N+1:
+
+```php
+public function index(): array
+{
+    $query = $this->model::query()
+        ->with('user', 'category', 'tags'); // Eager load
+    
+    return $query->paginate(15);
+}
+```
+</Accordion>
+
+<Accordion title="Selective Columns">
+Only fetch needed columns:
+
+```php
+public function index(): array
+{
+    $columns = array_column($this->columns, 'key');
+    
+    $query = $this->model::query()
+        ->select($columns); // Only fetch displayed columns
+    
+    return $query->paginate(15);
+}
+```
+</Accordion>
+
+## Security
+
+Protect admin endpoints with authentication:
+
+```php
+// middleware/AdminAuth.php
+class AdminAuth
+{
+    public function handle($request, $next)
+    {
+        $user = auth()->user();
+        
+        if (!$user || !$user->is_admin) {
+            return Response::json(['error' => 'Unauthorized'], 401);
+        }
+        
+        return $next($request);
+    }
+}
+
+// Apply to routes
+Router::group('/admin', function() {
+    // Protected routes
+})->middleware(AdminAuth::class);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Resources" icon="code" href="/advanced/api-resources">
+    Transform model responses
+  </Card>
+  <Card title="Authentication" icon="lock" href="/cli/make-auth">
+    Secure your admin panel
+  </Card>
+</CardGroup>

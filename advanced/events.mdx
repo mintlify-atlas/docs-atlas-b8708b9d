@@ -1,0 +1,494 @@
+---
+title: 'Event System'
+description: 'Event dispatching, listeners, and broadcasting for real-time features'
+---
+
+Lyger provides a powerful event system for decoupling application logic and enabling real-time features. Events can be dispatched, listened to, and broadcast across channels.
+
+## Creating Events
+
+Events extend the base `Event` class and contain data about what happened:
+
+```php
+use Lyger\Events\Event;
+
+class UserRegistered extends Event
+{
+    public function __construct(
+        public readonly int $userId,
+        public readonly string $email,
+        public readonly string $name
+    ) {}
+}
+
+class OrderPlaced extends Event
+{
+    public function __construct(
+        public readonly int $orderId,
+        public readonly float $total,
+        public readonly array $items
+    ) {}
+}
+```
+
+<Note>
+Events automatically get their name from the class name. `UserRegistered` becomes "UserRegistered" in the event system.
+</Note>
+
+## Dispatching Events
+
+Trigger events when important actions occur:
+
+```php
+use Lyger\Events\EventDispatcher;
+
+// Dispatch an event
+$event = new UserRegistered(
+    userId: 123,
+    email: 'user@example.com',
+    name: 'John Doe'
+);
+
+EventDispatcher::dispatch($event);
+
+// Dispatch with additional payload
+EventDispatcher::dispatch($event, [
+    'ip_address' => $_SERVER['REMOTE_ADDR'],
+    'timestamp' => time()
+]);
+```
+
+## Event Listeners
+
+Register listeners to respond to events:
+
+### Basic Listener
+
+```php
+use Lyger\Events\EventDispatcher;
+
+EventDispatcher::listen('UserRegistered', function($event, $payload) {
+    // Send welcome email
+    sendWelcomeEmail($event->email, $event->name);
+    
+    // Log registration
+    logger()->info("User {$event->userId} registered");
+    
+    // Track analytics
+    analytics()->track('user_registered', [
+        'user_id' => $event->userId,
+        'email' => $event->email
+    ]);
+});
+```
+
+### Multiple Listeners
+
+Multiple listeners can respond to the same event:
+
+```php
+// Listener 1: Send email
+EventDispatcher::listen('UserRegistered', function($event) {
+    sendWelcomeEmail($event->email, $event->name);
+});
+
+// Listener 2: Create profile
+EventDispatcher::listen('UserRegistered', function($event) {
+    createUserProfile($event->userId);
+});
+
+// Listener 3: Award points
+EventDispatcher::listen('UserRegistered', function($event) {
+    awardSignupBonus($event->userId, 100);
+});
+```
+
+## Wildcard Listeners
+
+Listen to multiple events with pattern matching:
+
+```php
+// Listen to all user events
+EventDispatcher::listen('User*', function($event, $payload) {
+    logger()->info("User event: " . $event->getName());
+});
+
+// Listen to all order events
+EventDispatcher::listen('Order*', function($event) {
+    updateDashboard($event);
+});
+
+// Listen to all events
+EventDispatcher::listen('*', function($event) {
+    auditLog($event);
+});
+```
+
+<Warning>
+Wildcard listeners run for every matching event. Use them sparingly to avoid performance issues.
+</Warning>
+
+## Event Service Provider
+
+Organize event listeners in a service provider:
+
+```php
+use Lyger\Events\EventServiceProvider;
+
+class AppEventServiceProvider extends EventServiceProvider
+{
+    public function register(): void
+    {
+        // User events
+        $this->listen('UserRegistered', function($event) {
+            sendWelcomeEmail($event->email);
+        });
+        
+        $this->listen('UserLoggedIn', function($event) {
+            updateLastLogin($event->userId);
+        });
+        
+        // Order events
+        $this->listen('OrderPlaced', function($event) {
+            processOrder($event->orderId);
+        });
+        
+        $this->listen('OrderShipped', function($event) {
+            notifyCustomer($event->orderId);
+        });
+    }
+}
+
+// Bootstrap
+$provider = new AppEventServiceProvider();
+$provider->register();
+```
+
+## Broadcasting Events
+
+Broadcast events to WebSocket channels for real-time updates:
+
+### Broadcastable Events
+
+Implement the `ShouldBroadcast` interface:
+
+```php
+use Lyger\Events\Event;
+use Lyger\Events\ShouldBroadcast;
+use Lyger\Events\Channel;
+use Lyger\Events\PrivateChannel;
+
+class MessageSent extends Event implements ShouldBroadcast
+{
+    public function __construct(
+        public readonly int $chatId,
+        public readonly int $userId,
+        public readonly string $message
+    ) {}
+    
+    public function broadcastOn(): array
+    {
+        return [
+            new PrivateChannel("chat.{$this->chatId}")
+        ];
+    }
+    
+    public function broadcastAs(): string
+    {
+        return 'message.sent';
+    }
+    
+    public function broadcastWith(): array
+    {
+        return [
+            'chat_id' => $this->chatId,
+            'user_id' => $this->userId,
+            'message' => $this->message,
+            'timestamp' => time()
+        ];
+    }
+}
+```
+
+### Broadcasting Manually
+
+<CodeGroup>
+
+```php Using BroadcastManager
+use Lyger\Events\BroadcastManager;
+use Lyger\Events\Channel;
+
+// Broadcast to a channel
+BroadcastManager::send(
+    [new Channel('notifications')],
+    'notification.received',
+    ['title' => 'New message', 'body' => 'You have 3 unread messages']
+);
+
+// Broadcast event
+$event = new MessageSent(123, 456, 'Hello!');
+BroadcastManager::event($event)
+    ->on(new Channel('chat.123'))
+    ->send();
+```
+
+```php Using Broadcaster
+use Lyger\Events\Broadcaster;
+use Lyger\Events\Channel;
+
+// Register channel
+Broadcaster::channel('notifications', function($event) {
+    // Send to WebSocket, push notification, etc.
+    sendToWebSocket($event->getPayload());
+});
+
+// Broadcast
+$event = new NotificationSent('New message');
+Broadcaster::broadcast('notifications', $event);
+```
+
+</CodeGroup>
+
+## Channel Types
+
+Lyger supports different channel types for broadcasting:
+
+### Public Channel
+
+```php
+use Lyger\Events\Channel;
+
+// Anyone can subscribe
+$channel = new Channel('announcements');
+$channel = new Channel('public.updates');
+```
+
+### Private Channel
+
+```php
+use Lyger\Events\PrivateChannel;
+
+// Requires authentication
+$channel = new PrivateChannel("user.{$userId}");
+$channel = new PrivateChannel("chat.{$chatId}");
+```
+
+### Presence Channel
+
+```php
+use Lyger\Events\PresenceChannel;
+
+// Track who's subscribed
+$channel = new PresenceChannel('chat.123');
+$channel = new PresenceChannel('game.room.456');
+```
+
+## Real-World Examples
+
+### User Activity Tracking
+
+```php
+// Define events
+class UserLoggedIn extends Event {
+    public function __construct(public int $userId, public string $ip) {}
+}
+
+class UserLoggedOut extends Event {
+    public function __construct(public int $userId) {}
+}
+
+// Register listeners
+EventDispatcher::listen('UserLoggedIn', function($event) {
+    // Update last login
+    User::find($event->userId)->update([
+        'last_login' => date('Y-m-d H:i:s'),
+        'last_ip' => $event->ip
+    ]);
+    
+    // Track session
+    session()->set('logged_in_at', time());
+});
+
+EventDispatcher::listen('UserLoggedOut', function($event) {
+    // Clear sessions
+    session()->destroy();
+    
+    // Log activity
+    ActivityLog::create([
+        'user_id' => $event->userId,
+        'action' => 'logout',
+        'created_at' => date('Y-m-d H:i:s')
+    ]);
+});
+
+// Usage
+EventDispatcher::dispatch(new UserLoggedIn(123, '192.168.1.1'));
+```
+
+### Order Processing Pipeline
+
+```php
+class OrderPlaced extends Event {
+    public function __construct(public int $orderId) {}
+}
+
+// Step 1: Validate payment
+EventDispatcher::listen('OrderPlaced', function($event) {
+    $order = Order::find($event->orderId);
+    validatePayment($order);
+});
+
+// Step 2: Update inventory
+EventDispatcher::listen('OrderPlaced', function($event) {
+    $order = Order::find($event->orderId);
+    foreach ($order->items as $item) {
+        decrementStock($item->product_id, $item->quantity);
+    }
+});
+
+// Step 3: Send confirmation
+EventDispatcher::listen('OrderPlaced', function($event) {
+    $order = Order::find($event->orderId);
+    sendOrderConfirmation($order->customer_email, $order);
+});
+
+// Step 4: Notify admin
+EventDispatcher::listen('OrderPlaced', function($event) {
+    notifyAdmin("New order #{$event->orderId}");
+});
+```
+
+### Real-Time Notifications
+
+```php
+class NotificationSent extends Event implements ShouldBroadcast {
+    public function __construct(
+        public int $userId,
+        public string $title,
+        public string $message
+    ) {}
+    
+    public function broadcastOn(): array {
+        return [new PrivateChannel("user.{$this->userId}")];
+    }
+    
+    public function broadcastAs(): string {
+        return 'notification';
+    }
+    
+    public function broadcastWith(): array {
+        return [
+            'title' => $this->title,
+            'message' => $this->message,
+            'timestamp' => time()
+        ];
+    }
+}
+
+// Send notification
+$event = new NotificationSent(123, 'New Message', 'You have a new message');
+EventDispatcher::dispatch($event);
+
+// Automatically broadcasts to WebSocket channel: private-user.123
+```
+
+## Event Utilities
+
+### Check for Listeners
+
+```php
+// Check if event has listeners
+if (EventDispatcher::hasListeners('UserRegistered')) {
+    echo "Event has listeners";
+}
+
+// Get listener count
+$count = EventDispatcher::getListenerCount('UserRegistered');
+echo "Number of listeners: {$count}";
+```
+
+### Clear Listeners
+
+```php
+// Clear specific event listeners
+EventDispatcher::clearEvent('UserRegistered');
+
+// Clear all listeners
+EventDispatcher::clear();
+```
+
+## Testing Events
+
+Mock events in tests:
+
+```php
+use Lyger\Events\FakeBroadcast;
+
+// Record events instead of broadcasting
+FakeBroadcast::record('MessageSent');
+
+// Assertions
+assert(FakeBroadcast::assertDispatched('MessageSent'));
+assert(FakeBroadcast::assertNotDispatched('OrderPlaced'));
+
+// Get recorded events
+$events = FakeBroadcast::events();
+
+// Reset
+FakeBroadcast::reset();
+```
+
+## Performance Tips
+
+<Accordion title="Async Listeners">
+For expensive operations, dispatch jobs instead of blocking:
+
+```php
+EventDispatcher::listen('UserRegistered', function($event) {
+    // Don't do this (blocks the request)
+    sendWelcomeEmail($event->email);
+    
+    // Do this instead (async)
+    SendWelcomeEmailJob::dispatch($event->email);
+});
+```
+</Accordion>
+
+<Accordion title="Event Batching">
+Batch similar events to reduce overhead:
+
+```php
+class EventBatcher {
+    private static array $batch = [];
+    
+    public static function add(Event $event): void {
+        self::$batch[] = $event;
+    }
+    
+    public static function flush(): void {
+        foreach (self::$batch as $event) {
+            EventDispatcher::dispatch($event);
+        }
+        self::$batch = [];
+    }
+}
+
+// Collect events
+EventBatcher::add(new UserViewed(123));
+EventBatcher::add(new UserViewed(124));
+
+// Process in batch
+EventBatcher::flush();
+```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="WebSockets" icon="tower-broadcast" href="/advanced/websockets">
+    Real-time communication
+  </Card>
+  <Card title="Jobs & Queues" icon="list-check" href="/advanced/jobs">
+    Background processing
+  </Card>
+</CardGroup>

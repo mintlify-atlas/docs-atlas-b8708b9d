@@ -1,0 +1,600 @@
+---
+title: 'Livewire Component'
+description: 'Server-side reactive components for building dynamic interfaces'
+---
+
+## Overview
+
+The Livewire component system provides full server-side reactivity, allowing you to build dynamic interfaces without writing JavaScript. Components automatically sync state between server and client.
+
+## Class: `Lyger\Livewire\Component`
+
+Base class for all Livewire components with reactive properties and lifecycle hooks.
+
+### Creating a Component
+
+```php
+use Lyger\Livewire\Component;
+
+class Counter extends Component
+{
+    public int $count = 0;
+
+    public function increment()
+    {
+        $this->count++;
+    }
+
+    public function render(): string
+    {
+        return view('counter', ['count' => $this->count]);
+    }
+}
+```
+
+## Lifecycle Methods
+
+### mount()
+
+Called when the component is first created.
+
+<ParamField path="params" type="mixed">
+  Optional parameters passed to the component
+</ParamField>
+
+```php
+public function mount(int $userId): void
+{
+    $this->userId = $userId;
+    $this->loadUser();
+}
+```
+
+### render()
+
+Renders the component view. Must be implemented by all components.
+
+<ResponseField name="return" type="string">
+  The rendered HTML of the component
+</ResponseField>
+
+```php
+abstract public function render(): string;
+```
+
+## Property Management
+
+### getPublicProperties()
+
+Returns all public properties for JavaScript synchronization.
+
+<ResponseField name="return" type="array">
+  Array of public property names and values
+</ResponseField>
+
+```php
+public function getPublicProperties(): array
+```
+
+**Example:**
+
+```php
+class UserProfile extends Component
+{
+    public string $name = 'John';
+    public string $email = 'john@example.com';
+    protected string $password = 'secret'; // Not included
+
+    // getPublicProperties() returns: ['name' => 'John', 'email' => 'john@example.com']
+}
+```
+
+### get()
+
+Retrieves a protected property value.
+
+<ParamField path="key" type="string" required>
+  The property name
+</ParamField>
+
+<ParamField path="default" type="mixed">
+  Default value if property doesn't exist
+</ParamField>
+
+```php
+protected function get(string $key, $default = null)
+```
+
+### set()
+
+Sets a property value and tracks it for updates.
+
+<ParamField path="key" type="string" required>
+  The property name
+</ParamField>
+
+<ParamField path="value" type="mixed" required>
+  The value to set
+</ParamField>
+
+```php
+protected function set(string $key, $value): void
+```
+
+## Method Calling
+
+### callMethod()
+
+Executes a method on the component and returns effects.
+
+<ParamField path="method" type="string" required>
+  The method name to call
+</ParamField>
+
+<ParamField path="params" type="array">
+  Parameters to pass to the method
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Contains 'effect', 'data', or 'error' keys
+</ResponseField>
+
+```php
+public function callMethod(string $method, array $params = []): array
+```
+
+**Example:**
+
+```php
+$component->callMethod('increment', []);
+// Returns: ['effect' => ['properties' => ['count' => 1]], 'data' => null]
+```
+
+## Validation
+
+### validate()
+
+Validates component properties against rules.
+
+<ParamField path="rules" type="array" required>
+  Validation rules array
+</ParamField>
+
+<ParamField path="messages" type="array">
+  Custom error messages
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Validated data on success
+</ResponseField>
+
+<ResponseField name="throws" type="ValidationException">
+  Thrown when validation fails
+</ResponseField>
+
+```php
+protected function validate(array $rules, array $messages = []): array
+```
+
+**Example:**
+
+```php
+public function submitForm()
+{
+    $validated = $this->validate([
+        'email' => 'required|email',
+        'password' => 'required|min:8',
+    ], [
+        'email.required' => 'Email is required',
+    ]);
+
+    // Process validated data...
+}
+```
+
+### addError()
+
+Manually adds an error message for a field.
+
+<ParamField path="field" type="string" required>
+  The field name
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  Error message
+</ParamField>
+
+```php
+protected function addError(string $field, string $message): void
+```
+
+## Events
+
+### emit()
+
+Emits an event to other components.
+
+<ParamField path="event" type="string" required>
+  Event name
+</ParamField>
+
+<ParamField path="params" type="mixed">
+  Event parameters (variadic)
+</ParamField>
+
+```php
+protected function emit(string $event, ...$params): array
+```
+
+**Example:**
+
+```php
+public function userUpdated()
+{
+    $this->emit('user-updated', $this->userId, $this->name);
+}
+```
+
+### emitUp()
+
+Emits an event to parent components only.
+
+```php
+protected function emitUp(string $event, ...$params): array
+```
+
+### dispatchBrowserEvent()
+
+Dispatches a custom browser event for JavaScript to listen to.
+
+<ParamField path="event" type="string" required>
+  Browser event name
+</ParamField>
+
+<ParamField path="data" type="array">
+  Event data payload
+</ParamField>
+
+```php
+protected function dispatchBrowserEvent(string $event, array $data = []): array
+```
+
+**Example:**
+
+```php
+public function showNotification()
+{
+    $this->dispatchBrowserEvent('notify', [
+        'type' => 'success',
+        'message' => 'Operation completed!',
+    ]);
+}
+```
+
+## Navigation
+
+### redirect()
+
+Redirects to a URL.
+
+<ParamField path="url" type="string" required>
+  The URL to redirect to
+</ParamField>
+
+```php
+protected function redirect(string $url): array
+```
+
+### redirectToRoute()
+
+Redirects to a named route with parameters.
+
+<ParamField path="route" type="string" required>
+  Route name or pattern
+</ParamField>
+
+<ParamField path="params" type="array">
+  Route parameters
+</ParamField>
+
+```php
+protected function redirectToRoute(string $route, array $params = []): array
+```
+
+**Example:**
+
+```php
+public function saveUser()
+{
+    // Save user...
+    return $this->redirectToRoute('/users/{id}', ['id' => $this->userId]);
+}
+```
+
+### refresh()
+
+Refreshes the component.
+
+```php
+protected function refresh(): array
+```
+
+## File Uploads
+
+### validateFile()
+
+Validates an uploaded file.
+
+<ParamField path="field" type="string" required>
+  Form field name
+</ParamField>
+
+<ParamField path="rules" type="array" required>
+  Validation rules
+</ParamField>
+
+```php
+protected function validateFile(string $field, array $rules): array
+```
+
+**Example:**
+
+```php
+public function uploadAvatar()
+{
+    $this->validateFile('avatar', [
+        'avatar' => 'required|image|max:2048',
+    ]);
+
+    // Process file...
+}
+```
+
+## Utility Methods
+
+### reset()
+
+Resets component properties to default values.
+
+<ParamField path="properties" type="string">
+  Specific properties to reset (variadic). If empty, resets all.
+</ParamField>
+
+```php
+protected function reset(...$properties): void
+```
+
+**Example:**
+
+```php
+public function clearForm()
+{
+    $this->reset('name', 'email'); // Reset specific fields
+    // or
+    $this->reset(); // Reset all properties
+}
+```
+
+### user()
+
+Gets the currently authenticated user.
+
+<ResponseField name="return" type="array|null">
+  User data array or null if not authenticated
+</ResponseField>
+
+```php
+protected function user(): ?array
+```
+
+### isAuthenticated()
+
+Checks if a user is authenticated.
+
+<ResponseField name="return" type="bool">
+  True if authenticated, false otherwise
+</ResponseField>
+
+```php
+protected function isAuthenticated(): bool
+```
+
+## Traits
+
+### WithEvents
+
+Provides event listener functionality.
+
+```php
+use Lyger\Livewire\Component;
+use Lyger\Livewire\WithEvents;
+
+class MyComponent extends Component
+{
+    use WithEvents;
+
+    protected array $listeners = [
+        'user-updated' => 'onUserUpdated',
+    ];
+
+    public function onUserUpdated($userId)
+    {
+        // Handle event...
+    }
+}
+```
+
+### WithFileUploads
+
+Provides file upload handling.
+
+```php
+use Lyger\Livewire\WithFileUploads;
+
+class UploadForm extends Component
+{
+    use WithFileUploads;
+
+    public function handleUpload()
+    {
+        $file = $this->request->file('document');
+        $path = $this->upload('document', $file);
+        // $path = '/uploads/abc123_document.pdf'
+    }
+}
+```
+
+### WithPagination
+
+Adds pagination functionality to components.
+
+```php
+use Lyger\Livewire\WithPagination;
+
+class UserList extends Component
+{
+    use WithPagination;
+
+    protected int $perPage = 20;
+
+    public function render(): string
+    {
+        $users = User::paginate($this->perPage, $this->page);
+        return view('users.list', compact('users'));
+    }
+}
+```
+
+**Methods:**
+
+- `nextPage()`: Go to next page
+- `previousPage()`: Go to previous page
+- `gotoPage(int $page)`: Jump to specific page
+
+### WithSearch
+
+Adds search functionality with query filtering.
+
+```php
+use Lyger\Livewire\WithSearch;
+
+class SearchableUsers extends Component
+{
+    use WithSearch;
+
+    protected array $searchable = ['name', 'email'];
+
+    public function render(): string
+    {
+        $query = User::query();
+        $query = $this->applySearch($query);
+        $users = $query->get();
+
+        return view('users.search', compact('users'));
+    }
+}
+```
+
+<Note>
+The `updatingSearch()` lifecycle hook automatically resets pagination to page 1 when search changes.
+</Note>
+
+## Manager Class
+
+### Lyger\Livewire\Manager
+
+Manages component registration and request handling.
+
+#### register()
+
+Registers a component class.
+
+```php
+Manager::register('counter', Counter::class);
+```
+
+#### get()
+
+Gets a component instance by name.
+
+```php
+$component = Manager::get('counter');
+```
+
+#### handle()
+
+Handles incoming Livewire AJAX requests.
+
+<ParamField path="request" type="Request" required>
+  The HTTP request object
+</ParamField>
+
+<ResponseField name="return" type="Response">
+  JSON response with component data
+</ResponseField>
+
+```php
+public static function handle(Request $request): Response
+```
+
+## Complete Example
+
+```php
+use Lyger\Livewire\Component;
+use Lyger\Livewire\WithPagination;
+
+class TodoList extends Component
+{
+    use WithPagination;
+
+    public array $todos = [];
+    public string $newTodo = '';
+    protected int $perPage = 10;
+
+    public function mount()
+    {
+        $this->loadTodos();
+    }
+
+    public function addTodo()
+    {
+        $this->validate([
+            'newTodo' => 'required|min:3',
+        ]);
+
+        $this->todos[] = [
+            'id' => uniqid(),
+            'text' => $this->newTodo,
+            'completed' => false,
+        ];
+
+        $this->newTodo = '';
+        $this->emit('todo-added');
+    }
+
+    public function toggleTodo($id)
+    {
+        foreach ($this->todos as &$todo) {
+            if ($todo['id'] === $id) {
+                $todo['completed'] = !$todo['completed'];
+                break;
+            }
+        }
+    }
+
+    private function loadTodos()
+    {
+        // Load from database...
+    }
+
+    public function render(): string
+    {
+        return view('todos.list', [
+            'todos' => array_slice($this->todos, 
+                ($this->page - 1) * $this->perPage, 
+                $this->perPage
+            ),
+        ]);
+    }
+}
+```

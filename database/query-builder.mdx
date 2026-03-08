@@ -1,0 +1,401 @@
+---
+title: 'Query Builder'
+description: 'Build SQL queries with a fluent, expressive interface'
+---
+
+## Introduction
+
+The Lyger Query Builder provides a fluent interface for building and executing database queries. It's inspired by Laravel's Query Builder and offers a clean, readable syntax for working with databases.
+
+## Basic Usage
+
+### Creating a Query Builder Instance
+
+You can create a QueryBuilder instance in two ways:
+
+```php
+use Lyger\Database\QueryBuilder;
+
+// Using the static table method
+$users = QueryBuilder::table('users')->get();
+
+// Using the constructor
+$query = new QueryBuilder('users');
+$users = $query->get();
+```
+
+## Select Queries
+
+### Retrieving All Records
+
+```php
+$users = QueryBuilder::table('users')->get();
+
+foreach ($users as $user) {
+    echo $user['name'];
+}
+```
+
+### Selecting Specific Columns
+
+```php
+$users = QueryBuilder::table('users')
+    ->select(['id', 'name', 'email'])
+    ->get();
+```
+
+### Getting a Single Record
+
+```php
+// Get first matching record
+$user = QueryBuilder::table('users')
+    ->where('id', '=', 1)
+    ->first();
+
+// Get a single column value
+$email = QueryBuilder::table('users')
+    ->where('id', '=', 1)
+    ->value('email');
+```
+
+<Note>
+  The `first()` method returns `null` if no record is found, while `value()` returns `null` if the column doesn't exist.
+</Note>
+
+## Where Clauses
+
+### Basic Where Clauses
+
+```php
+// Basic where with operator
+$users = QueryBuilder::table('users')
+    ->where('status', '=', 'active')
+    ->get();
+
+// Shorthand (defaults to '=' operator)
+$users = QueryBuilder::table('users')
+    ->where('status', 'active')
+    ->get();
+
+// Multiple where conditions
+$users = QueryBuilder::table('users')
+    ->where('status', '=', 'active')
+    ->where('role', '=', 'admin')
+    ->get();
+```
+
+### Or Where Clauses
+
+```php
+$users = QueryBuilder::table('users')
+    ->where('status', '=', 'active')
+    ->orWhere('role', '=', 'admin')
+    ->get();
+```
+
+### Where In Clauses
+
+```php
+$users = QueryBuilder::table('users')
+    ->whereIn('id', [1, 2, 3, 4, 5])
+    ->get();
+```
+
+### Null Checks
+
+```php
+// Where column is NULL
+$users = QueryBuilder::table('users')
+    ->whereNull('deleted_at')
+    ->get();
+
+// Where column is NOT NULL
+$users = QueryBuilder::table('users')
+    ->whereNotNull('email_verified_at')
+    ->get();
+```
+
+## Ordering
+
+### Order By
+
+```php
+// Ascending order (default)
+$users = QueryBuilder::table('users')
+    ->orderBy('name', 'ASC')
+    ->get();
+
+// Descending order
+$users = QueryBuilder::table('users')
+    ->orderBy('created_at', 'DESC')
+    ->get();
+```
+
+### Latest and Oldest
+
+Convenient methods for ordering by timestamps:
+
+```php
+// Order by created_at DESC
+$users = QueryBuilder::table('users')
+    ->latest()
+    ->get();
+
+// Order by created_at ASC
+$users = QueryBuilder::table('users')
+    ->oldest()
+    ->get();
+
+// Use a different column
+$users = QueryBuilder::table('posts')
+    ->latest('published_at')
+    ->get();
+```
+
+## Limiting and Offset
+
+### Limit
+
+```php
+// Get first 10 records
+$users = QueryBuilder::table('users')
+    ->limit(10)
+    ->get();
+```
+
+### Offset
+
+```php
+// Skip first 10 records, get next 10
+$users = QueryBuilder::table('users')
+    ->offset(10)
+    ->limit(10)
+    ->get();
+```
+
+## Pagination
+
+The `paginate()` method provides automatic pagination:
+
+```php
+$result = QueryBuilder::table('users')
+    ->where('status', '=', 'active')
+    ->paginate(15, 1); // 15 per page, page 1
+
+// Result structure:
+// [
+//     'data' => [...],           // Array of records
+//     'current_page' => 1,
+//     'per_page' => 15,
+//     'total' => 150,
+//     'last_page' => 10,
+//     'from' => 1,
+//     'to' => 15
+// ]
+```
+
+<ParamField path="perPage" type="int" default="15">
+  Number of records per page
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  Current page number
+</ParamField>
+
+## Joins
+
+### Inner Join
+
+```php
+$users = QueryBuilder::table('users')
+    ->join('posts', 'users.id', '=', 'posts.user_id')
+    ->select(['users.*', 'posts.title'])
+    ->get();
+```
+
+### Left Join
+
+```php
+$users = QueryBuilder::table('users')
+    ->leftJoin('profiles', 'users.id', '=', 'profiles.user_id')
+    ->select(['users.*', 'profiles.bio'])
+    ->get();
+```
+
+## Aggregates
+
+### Count
+
+```php
+$total = QueryBuilder::table('users')->count();
+
+$activeUsers = QueryBuilder::table('users')
+    ->where('status', '=', 'active')
+    ->count();
+```
+
+### Exists
+
+```php
+$hasUsers = QueryBuilder::table('users')
+    ->where('role', '=', 'admin')
+    ->exists(); // Returns bool
+```
+
+## Insert Queries
+
+### Inserting Records
+
+```php
+$success = QueryBuilder::table('users')->insert([
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'password' => password_hash('secret', PASSWORD_DEFAULT),
+    'created_at' => date('Y-m-d H:i:s'),
+    'updated_at' => date('Y-m-d H:i:s')
+]);
+
+// Returns: true on success, false on failure
+```
+
+<Note>
+  The `insert()` method returns a boolean indicating success. The last insert ID is managed automatically by the underlying PDO connection.
+</Note>
+
+## Update Queries
+
+### Updating Records
+
+```php
+$affected = QueryBuilder::table('users')
+    ->where('id', '=', 1)
+    ->update([
+        'name' => 'Jane Doe',
+        'updated_at' => date('Y-m-d H:i:s')
+    ]);
+
+// Returns: number of affected rows
+```
+
+### Update with Limit
+
+```php
+$affected = QueryBuilder::table('users')
+    ->where('status', '=', 'pending')
+    ->limit(10)
+    ->update(['status' => 'processed']);
+```
+
+## Delete Queries
+
+### Deleting Records
+
+```php
+$affected = QueryBuilder::table('users')
+    ->where('id', '=', 1)
+    ->delete();
+
+// Returns: number of affected rows
+```
+
+### Delete with Limit
+
+```php
+$affected = QueryBuilder::table('logs')
+    ->where('level', '=', 'debug')
+    ->limit(100)
+    ->delete();
+```
+
+<Warning>
+  Be careful when using `delete()` without a `where()` clause, as it will delete all records from the table.
+</Warning>
+
+## Method Chaining
+
+All Query Builder methods support fluent chaining:
+
+```php
+$users = QueryBuilder::table('users')
+    ->select(['id', 'name', 'email', 'created_at'])
+    ->where('status', '=', 'active')
+    ->whereNotNull('email_verified_at')
+    ->orderBy('created_at', 'DESC')
+    ->limit(20)
+    ->offset(0)
+    ->get();
+```
+
+## Parameter Binding
+
+The Query Builder automatically handles parameter binding to prevent SQL injection:
+
+```php
+// Parameters are safely bound
+$users = QueryBuilder::table('users')
+    ->where('email', '=', $userInput)
+    ->where('status', '=', $statusInput)
+    ->get();
+
+// Even with whereIn
+$users = QueryBuilder::table('users')
+    ->whereIn('id', $userProvidedIds)
+    ->get();
+```
+
+<Note>
+  All user-provided values are automatically escaped and bound as parameters. You never need to manually escape values.
+</Note>
+
+## Complete Example
+
+Here's a comprehensive example combining multiple Query Builder features:
+
+```php
+use Lyger\Database\QueryBuilder;
+
+// Complex query with multiple conditions
+$posts = QueryBuilder::table('posts')
+    ->select(['posts.*', 'users.name as author_name'])
+    ->join('users', 'posts.user_id', '=', 'users.id')
+    ->where('posts.status', '=', 'published')
+    ->whereNotNull('posts.published_at')
+    ->whereIn('posts.category_id', [1, 2, 3])
+    ->orderBy('posts.published_at', 'DESC')
+    ->limit(10)
+    ->get();
+
+// Pagination example
+$result = QueryBuilder::table('products')
+    ->where('stock', '>', 0)
+    ->where('active', '=', true)
+    ->orderBy('name', 'ASC')
+    ->paginate(20, $_GET['page'] ?? 1);
+
+// Insert with error handling
+try {
+    $success = QueryBuilder::table('orders')->insert([
+        'user_id' => $userId,
+        'total' => $total,
+        'status' => 'pending',
+        'created_at' => date('Y-m-d H:i:s')
+    ]);
+    
+    if ($success) {
+        echo "Order created successfully";
+    }
+} catch (\PDOException $e) {
+    echo "Failed to create order: " . $e->getMessage();
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Eloquent Models" icon="database" href="/database/eloquent-models">
+    Learn about the Eloquent ORM layer built on top of Query Builder
+  </Card>
+  <Card title="Migrations" icon="arrows-rotate" href="/database/migrations">
+    Manage your database schema with migrations
+  </Card>
+</CardGroup>

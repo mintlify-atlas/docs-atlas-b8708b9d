@@ -1,0 +1,711 @@
+---
+title: 'WebSockets'
+description: 'Real-time bidirectional communication for live features'
+---
+
+Lyger includes a built-in WebSocket server for real-time, bidirectional communication between server and clients. Perfect for chat applications, live notifications, collaborative editing, and real-time dashboards.
+
+## WebSocket Server
+
+Create a WebSocket server by extending the `WebSocket` class:
+
+```php
+use Lyger\WebSockets\WebSocket;
+use Lyger\WebSockets\Client;
+
+class ChatServer extends WebSocket
+{
+    protected function onConnect(Client $client): void
+    {
+        echo "New client connected\n";
+        
+        // Send welcome message
+        $client->send(json_encode([
+            'type' => 'welcome',
+            'message' => 'Welcome to the chat!'
+        ]));
+    }
+    
+    protected function onMessage(Client $client, string $message): void
+    {
+        echo "Received: {$message}\n";
+        
+        $data = json_decode($message, true);
+        
+        // Broadcast to all clients
+        $this->broadcast(json_encode([
+            'type' => 'message',
+            'text' => $data['text'],
+            'timestamp' => time()
+        ]));
+    }
+    
+    protected function onClose(Client $client): void
+    {
+        echo "Client disconnected\n";
+    }
+    
+    protected function onError(Client $client, \Exception $e): void
+    {
+        echo "Error: " . $e->getMessage() . "\n";
+    }
+}
+
+// Start server
+$server = new ChatServer(8080);
+$server->start();
+```
+
+<Note>
+The WebSocket server runs in a separate process. Use `php websocket.php` to start it independently from your main application.
+</Note>
+
+## Basic Operations
+
+### Broadcasting
+
+Send messages to all connected clients:
+
+```php
+class GameServer extends WebSocket
+{
+    protected function onMessage(Client $client, string $message): void
+    {
+        $data = json_decode($message, true);
+        
+        // Broadcast to everyone
+        $this->broadcast(json_encode([
+            'event' => 'player_moved',
+            'position' => $data['position']
+        ]));
+    }
+}
+```
+
+### Channels
+
+Group clients into channels:
+
+```php
+class ChatServer extends WebSocket
+{
+    protected function onMessage(Client $client, string $message): void
+    {
+        $data = json_decode($message, true);
+        
+        if ($data['action'] === 'join_channel') {
+            // Add client to channel
+            $this->joinChannel($client, $data['channel']);
+            
+            $client->send(json_encode([
+                'type' => 'joined',
+                'channel' => $data['channel']
+            ]));
+        }
+        
+        if ($data['action'] === 'send_message') {
+            // Broadcast to channel only
+            $this->sendToChannel($data['channel'], json_encode([
+                'type' => 'message',
+                'channel' => $data['channel'],
+                'text' => $data['text']
+            ]));
+        }
+    }
+}
+```
+
+### Leave Channel
+
+```php
+protected function onMessage(Client $client, string $message): void
+{
+    $data = json_decode($message, true);
+    
+    if ($data['action'] === 'leave_channel') {
+        $this->leaveChannel($client, $data['channel']);
+        
+        $client->send(json_encode([
+            'type' => 'left',
+            'channel' => $data['channel']
+        ]));
+    }
+}
+```
+
+## Client Connection
+
+### JavaScript Client
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Chat</title>
+</head>
+<body>
+    <div id="messages"></div>
+    <input type="text" id="messageInput" />
+    <button onclick="sendMessage()">Send</button>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:8080');
+        
+        ws.onopen = () => {
+            console.log('Connected to WebSocket server');
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log('Received:', data);
+            
+            if (data.type === 'message') {
+                displayMessage(data.text);
+            }
+        };
+        
+        ws.onclose = () => {
+            console.log('Disconnected from server');
+        };
+        
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+        
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = {
+                action: 'send_message',
+                text: input.value
+            };
+            
+            ws.send(JSON.stringify(message));
+            input.value = '';
+        }
+        
+        function displayMessage(text) {
+            const messagesDiv = document.getElementById('messages');
+            const messageEl = document.createElement('div');
+            messageEl.textContent = text;
+            messagesDiv.appendChild(messageEl);
+        }
+    </script>
+</body>
+</html>
+```
+
+### PHP Client
+
+Use `WebSocketClient` to connect from PHP:
+
+```php
+use Lyger\WebSockets\WebSocketClient;
+
+$client = new WebSocketClient();
+
+if ($client->connect('ws://localhost:8080')) {
+    echo "Connected!\n";
+    
+    // Send message
+    $client->send(json_encode([
+        'action' => 'send_message',
+        'text' => 'Hello from PHP!'
+    ]));
+    
+    // Receive response
+    $response = $client->receive();
+    echo "Received: {$response}\n";
+    
+    $client->close();
+}
+```
+
+## Advanced Features
+
+### Authentication
+
+Authenticate clients before allowing connections:
+
+```php
+class SecureWebSocket extends WebSocket
+{
+    private array $authenticatedClients = [];
+    
+    protected function onConnect(Client $client): void
+    {
+        // Request authentication
+        $client->send(json_encode([
+            'type' => 'auth_required',
+            'message' => 'Please authenticate'
+        ]));
+    }
+    
+    protected function onMessage(Client $client, string $message): void
+    {
+        $data = json_decode($message, true);
+        
+        // Check if authenticated
+        if (!$this->isAuthenticated($client)) {
+            if ($data['action'] === 'authenticate') {
+                if ($this->validateToken($data['token'])) {
+                    $this->authenticatedClients[(int)$client->getResource()] = true;
+                    
+                    $client->send(json_encode([
+                        'type' => 'auth_success',
+                        'message' => 'Authenticated successfully'
+                    ]));
+                } else {
+                    $client->send(json_encode([
+                        'type' => 'auth_failed',
+                        'message' => 'Invalid token'
+                    ]));
+                }
+            }
+            return;
+        }
+        
+        // Handle authenticated messages
+        $this->handleAuthenticatedMessage($client, $data);
+    }
+    
+    private function isAuthenticated(Client $client): bool
+    {
+        return isset($this->authenticatedClients[(int)$client->getResource()]);
+    }
+    
+    private function validateToken(string $token): bool
+    {
+        // Validate JWT or session token
+        return $token === 'valid_token_123';
+    }
+}
+```
+
+### Rate Limiting
+
+Prevent spam with rate limiting:
+
+```php
+class RateLimitedWebSocket extends WebSocket
+{
+    private array $messageCounts = [];
+    private int $maxMessagesPerMinute = 30;
+    
+    protected function onMessage(Client $client, string $message): void
+    {
+        $clientId = (int)$client->getResource();
+        
+        // Initialize counter
+        if (!isset($this->messageCounts[$clientId])) {
+            $this->messageCounts[$clientId] = [
+                'count' => 0,
+                'reset_at' => time() + 60
+            ];
+        }
+        
+        // Reset counter if minute passed
+        if (time() > $this->messageCounts[$clientId]['reset_at']) {
+            $this->messageCounts[$clientId] = [
+                'count' => 0,
+                'reset_at' => time() + 60
+            ];
+        }
+        
+        // Check limit
+        $this->messageCounts[$clientId]['count']++;
+        
+        if ($this->messageCounts[$clientId]['count'] > $this->maxMessagesPerMinute) {
+            $client->send(json_encode([
+                'type' => 'rate_limit',
+                'message' => 'Too many messages. Please slow down.'
+            ]));
+            return;
+        }
+        
+        // Process message
+        $this->processMessage($client, $message);
+    }
+}
+```
+
+### Ping/Pong Heartbeat
+
+Keep connections alive with heartbeats:
+
+```php
+class HeartbeatWebSocket extends WebSocket
+{
+    private array $lastPing = [];
+    private int $heartbeatInterval = 30; // seconds
+    private int $timeout = 60; // seconds
+    
+    public function start(): void
+    {
+        // Start heartbeat checker in background
+        $this->startHeartbeatChecker();
+        
+        parent::start();
+    }
+    
+    private function startHeartbeatChecker(): void
+    {
+        // In production, use a separate process or async task
+        register_tick_function(function() {
+            $now = time();
+            
+            foreach ($this->clients as $key => $client) {
+                $clientId = (int)$client->getResource();
+                
+                // Send ping if needed
+                if (!isset($this->lastPing[$clientId]) || 
+                    $now - $this->lastPing[$clientId] > $this->heartbeatInterval) {
+                    
+                    $client->send(json_encode(['type' => 'ping']));
+                    $this->lastPing[$clientId] = $now;
+                }
+                
+                // Disconnect if no response
+                if (isset($this->lastPing[$clientId]) && 
+                    $now - $this->lastPing[$clientId] > $this->timeout) {
+                    
+                    echo "Client {$clientId} timed out\n";
+                    $client->close();
+                    unset($this->clients[$key]);
+                    unset($this->lastPing[$clientId]);
+                }
+            }
+        });
+    }
+    
+    protected function onMessage(Client $client, string $message): void
+    {
+        $data = json_decode($message, true);
+        
+        if ($data['type'] === 'pong') {
+            $this->lastPing[(int)$client->getResource()] = time();
+            return;
+        }
+        
+        // Handle other messages
+        $this->handleMessage($client, $data);
+    }
+}
+```
+
+## Real-World Examples
+
+### Chat Application
+
+<CodeGroup>
+
+```php Server
+class ChatServer extends WebSocket
+{
+    private array $users = [];
+    
+    protected function onConnect(Client $client): void
+    {
+        $clientId = (int)$client->getResource();
+        $this->users[$clientId] = [
+            'name' => 'Guest' . $clientId,
+            'joined_at' => time()
+        ];
+        
+        // Notify all users
+        $this->broadcast(json_encode([
+            'type' => 'user_joined',
+            'user' => $this->users[$clientId]['name'],
+            'count' => count($this->users)
+        ]));
+    }
+    
+    protected function onMessage(Client $client, string $message): void
+    {
+        $data = json_decode($message, true);
+        $clientId = (int)$client->getResource();
+        
+        switch ($data['action']) {
+            case 'set_name':
+                $this->users[$clientId]['name'] = $data['name'];
+                break;
+                
+            case 'send_message':
+                $this->broadcast(json_encode([
+                    'type' => 'message',
+                    'user' => $this->users[$clientId]['name'],
+                    'text' => $data['text'],
+                    'timestamp' => time()
+                ]));
+                break;
+                
+            case 'join_room':
+                $this->joinChannel($client, 'room:' . $data['room']);
+                break;
+        }
+    }
+    
+    protected function onClose(Client $client): void
+    {
+        $clientId = (int)$client->getResource();
+        
+        if (isset($this->users[$clientId])) {
+            $this->broadcast(json_encode([
+                'type' => 'user_left',
+                'user' => $this->users[$clientId]['name'],
+                'count' => count($this->users) - 1
+            ]));
+            
+            unset($this->users[$clientId]);
+        }
+    }
+}
+```
+
+```javascript Client
+const ws = new WebSocket('ws://localhost:8080');
+let username = 'Guest';
+
+ws.onopen = () => {
+    console.log('Connected to chat');
+    
+    // Set username
+    username = prompt('Enter your name:') || 'Guest';
+    ws.send(JSON.stringify({
+        action: 'set_name',
+        name: username
+    }));
+};
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    
+    switch (data.type) {
+        case 'user_joined':
+            addSystemMessage(`${data.user} joined (${data.count} online)`);
+            break;
+            
+        case 'user_left':
+            addSystemMessage(`${data.user} left (${data.count} online)`);
+            break;
+            
+        case 'message':
+            addMessage(data.user, data.text, data.timestamp);
+            break;
+    }
+};
+
+function sendMessage(text) {
+    ws.send(JSON.stringify({
+        action: 'send_message',
+        text: text
+    }));
+}
+```
+
+</CodeGroup>
+
+### Live Dashboard
+
+```php
+class DashboardServer extends WebSocket
+{
+    private int $updateInterval = 5; // seconds
+    private int $lastUpdate = 0;
+    
+    public function start(): void
+    {
+        // Schedule updates
+        register_tick_function(function() {
+            $now = time();
+            
+            if ($now - $this->lastUpdate >= $this->updateInterval) {
+                $this->broadcastMetrics();
+                $this->lastUpdate = $now;
+            }
+        });
+        
+        parent::start();
+    }
+    
+    private function broadcastMetrics(): void
+    {
+        $metrics = [
+            'users_online' => $this->getUserCount(),
+            'cpu_usage' => $this->getCpuUsage(),
+            'memory_usage' => $this->getMemoryUsage(),
+            'requests_per_second' => $this->getRequestRate(),
+            'timestamp' => time()
+        ];
+        
+        $this->broadcast(json_encode([
+            'type' => 'metrics_update',
+            'data' => $metrics
+        ]));
+    }
+    
+    private function getUserCount(): int
+    {
+        return User::where('last_active', '>', time() - 300)->count();
+    }
+    
+    private function getCpuUsage(): float
+    {
+        return sys_getloadavg()[0];
+    }
+    
+    private function getMemoryUsage(): int
+    {
+        return memory_get_usage(true);
+    }
+    
+    private function getRequestRate(): int
+    {
+        $cache = Cache::getInstance();
+        return (int)$cache->get('requests_last_second', 0);
+    }
+}
+```
+
+### Collaborative Editor
+
+```php
+class CollaborativeEditor extends WebSocket
+{
+    private array $documents = [];
+    
+    protected function onMessage(Client $client, string $message): void
+    {
+        $data = json_decode($message, true);
+        $clientId = (int)$client->getResource();
+        
+        switch ($data['action']) {
+            case 'join_document':
+                $docId = $data['document_id'];
+                $this->joinChannel($client, "doc:{$docId}");
+                
+                // Send current document state
+                $client->send(json_encode([
+                    'type' => 'document_state',
+                    'content' => $this->documents[$docId] ?? ''
+                ]));
+                break;
+                
+            case 'update':
+                $docId = $data['document_id'];
+                $this->documents[$docId] = $data['content'];
+                
+                // Broadcast to all editors of this document
+                $this->sendToChannel("doc:{$docId}", json_encode([
+                    'type' => 'update',
+                    'content' => $data['content'],
+                    'cursor' => $data['cursor'],
+                    'user_id' => $clientId
+                ]));
+                break;
+        }
+    }
+}
+```
+
+## Running WebSocket Server
+
+### Standalone Script
+
+```php
+// websocket.php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use App\WebSockets\ChatServer;
+
+$server = new ChatServer(8080);
+
+echo "WebSocket server starting on port 8080...\n";
+
+$server->start();
+```
+
+Run with:
+```bash
+php websocket.php
+```
+
+<Warning>
+The WebSocket server blocks the process. Run it in a separate terminal or use a process manager like Supervisor to keep it running in production.
+</Warning>
+
+### With Supervisor
+
+```ini
+[program:lyger-websocket]
+command=php /var/www/websocket.php
+autostart=true
+autorestart=true
+user=www-data
+stdout_logfile=/var/log/lyger-websocket.log
+stderr_logfile=/var/log/lyger-websocket-error.log
+```
+
+## Performance Tips
+
+<Accordion title="Message Batching">
+Batch multiple updates:
+
+```php
+private array $pendingMessages = [];
+
+public function queueMessage(string $channel, array $data): void
+{
+    $this->pendingMessages[$channel][] = $data;
+}
+
+public function flushMessages(): void
+{
+    foreach ($this->pendingMessages as $channel => $messages) {
+        $this->sendToChannel($channel, json_encode([
+            'type' => 'batch',
+            'messages' => $messages
+        ]));
+    }
+    
+    $this->pendingMessages = [];
+}
+```
+</Accordion>
+
+<Accordion title="Connection Pooling">
+Limit connections per IP:
+
+```php
+private array $connectionCounts = [];
+private int $maxConnectionsPerIp = 5;
+
+protected function onConnect(Client $client): void
+{
+    $ip = $this->getClientIp($client);
+    
+    if (!isset($this->connectionCounts[$ip])) {
+        $this->connectionCounts[$ip] = 0;
+    }
+    
+    $this->connectionCounts[$ip]++;
+    
+    if ($this->connectionCounts[$ip] > $this->maxConnectionsPerIp) {
+        $client->send(json_encode(['error' => 'Too many connections']));
+        $client->close();
+    }
+}
+```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="broadcast-tower" href="/advanced/events">
+    Event broadcasting system
+  </Card>
+  <Card title="Cache" icon="database" href="/advanced/cache">
+    High-performance caching
+  </Card>
+</CardGroup>

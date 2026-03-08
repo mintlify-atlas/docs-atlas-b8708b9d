@@ -1,0 +1,354 @@
+---
+title: 'Route Parameters'
+description: 'Capture dynamic values from URLs in Lyger Framework'
+---
+
+## Introduction
+
+Route parameters allow you to capture dynamic segments from the URL and pass them to your route handlers. This is essential for building RESTful APIs and dynamic web applications.
+
+## Basic Parameters
+
+Define parameters in your route path using curly braces `{}`:
+
+```php
+use Lyger\Routing\Route;
+use Lyger\Http\Response;
+
+Route::get('/users/{id}', function ($request, $id) {
+    return Response::json([
+        'user_id' => $id,
+        'message' => "Fetching user with ID: {$id}"
+    ]);
+});
+```
+
+<Note>
+Route parameters are passed to your handler **after** the `Request` object, in the order they appear in the route path.
+</Note>
+
+## Multiple Parameters
+
+You can define multiple parameters in a single route:
+
+```php
+Route::get('/posts/{postId}/comments/{commentId}', function ($request, $postId, $commentId) {
+    return Response::json([
+        'post_id' => $postId,
+        'comment_id' => $commentId
+    ]);
+});
+
+// Example URL: /posts/42/comments/123
+// $postId = "42"
+// $commentId = "123"
+```
+
+## How Parameter Matching Works
+
+Lyger's router uses a simple but powerful matching algorithm:
+
+1. The route path and request URI are split by `/`
+2. Each segment is compared
+3. Segments wrapped in `{}` are captured as parameters
+4. All other segments must match exactly
+
+```php
+// Route pattern: /api/users/{id}/profile
+// Request URI:   /api/users/123/profile
+
+// Match! Parameter extracted: $id = "123"
+```
+
+<Warning>
+The number of segments must match exactly. A route `/users/{id}` will **not** match `/users/123/profile`.
+</Warning>
+
+## Parameter Names
+
+Parameter names can be any valid variable name:
+
+```php
+Route::get('/blog/{slug}', function ($request, $slug) {
+    return Response::json(['slug' => $slug]);
+});
+
+Route::get('/api/v1/resources/{resourceId}', function ($request, $resourceId) {
+    return Response::json(['resource' => $resourceId]);
+});
+```
+
+## Using Parameters with Controllers
+
+Parameters work seamlessly with controller methods:
+
+```php
+use Lyger\Routing\Route;
+use App\Controllers\UserController;
+
+Route::get('/users/{id}', [UserController::class, 'show']);
+Route::put('/users/{id}', [UserController::class, 'update']);
+Route::delete('/users/{id}', [UserController::class, 'destroy']);
+```
+
+The controller method receives parameters after the Request object:
+
+```php
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class UserController
+{
+    public function show(Request $request, string $id): Response
+    {
+        // Fetch user with $id
+        return Response::json([
+            'user' => [
+                'id' => $id,
+                'name' => 'John Doe'
+            ]
+        ]);
+    }
+    
+    public function update(Request $request, string $id): Response
+    {
+        $data = $request->all();
+        // Update user with $id
+        return Response::json([
+            'updated' => true,
+            'user_id' => $id
+        ]);
+    }
+    
+    public function destroy(Request $request, string $id): Response
+    {
+        // Delete user with $id
+        return Response::json([
+            'deleted' => true,
+            'user_id' => $id
+        ]);
+    }
+}
+```
+
+## Parameter Type Handling
+
+All parameters are captured as strings. You should validate and cast them as needed:
+
+<CodeGroup>
+
+```php Integer Validation
+Route::get('/users/{id}', function ($request, $id) {
+    if (!is_numeric($id)) {
+        return Response::error('Invalid user ID', 400);
+    }
+    
+    $userId = (int) $id;
+    return Response::json(['user_id' => $userId]);
+});
+```
+
+```php String Validation
+Route::get('/posts/{slug}', function ($request, $slug) {
+    if (!preg_match('/^[a-z0-9-]+$/', $slug)) {
+        return Response::error('Invalid slug format', 400);
+    }
+    
+    return Response::json(['slug' => $slug]);
+});
+```
+
+```php UUID Validation
+Route::get('/resources/{uuid}', function ($request, $uuid) {
+    $pattern = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/';
+    
+    if (!preg_match($pattern, $uuid)) {
+        return Response::error('Invalid UUID format', 400);
+    }
+    
+    return Response::json(['uuid' => $uuid]);
+});
+```
+
+</CodeGroup>
+
+## RESTful Resource Routes
+
+Common pattern for RESTful APIs with parameters:
+
+```php
+use Lyger\Routing\Route;
+use App\Controllers\PostController;
+
+// List all posts
+Route::get('/posts', [PostController::class, 'index']);
+
+// Create new post
+Route::post('/posts', [PostController::class, 'store']);
+
+// Show specific post
+Route::get('/posts/{id}', [PostController::class, 'show']);
+
+// Update specific post
+Route::put('/posts/{id}', [PostController::class, 'update']);
+
+// Delete specific post
+Route::delete('/posts/{id}', [PostController::class, 'destroy']);
+
+// Nested resource: comments on a post
+Route::get('/posts/{postId}/comments', [PostController::class, 'comments']);
+Route::post('/posts/{postId}/comments', [PostController::class, 'addComment']);
+```
+
+## Combining Parameters with Request Data
+
+You can use both route parameters and request data together:
+
+```php
+Route::put('/users/{id}', function ($request, $id) {
+    // Get the route parameter
+    $userId = $id;
+    
+    // Get request data
+    $name = $request->input('name');
+    $email = $request->input('email');
+    
+    return Response::json([
+        'user_id' => $userId,
+        'updated_fields' => [
+            'name' => $name,
+            'email' => $email
+        ]
+    ]);
+});
+
+// PUT /users/123
+// Body: {"name": "Jane Doe", "email": "jane@example.com"}
+```
+
+## Practical Examples
+
+<Tabs>
+  <Tab title="User Profile">
+    ```php
+    Route::get('/users/{username}/profile', function ($request, $username) {
+        return Response::json([
+            'username' => $username,
+            'profile' => [
+                'bio' => 'Hello world',
+                'location' => 'San Francisco'
+            ]
+        ]);
+    });
+    ```
+  </Tab>
+  <Tab title="File Download">
+    ```php
+    Route::get('/downloads/{filename}', function ($request, $filename) {
+        $filepath = __DIR__ . '/storage/' . basename($filename);
+        
+        if (!file_exists($filepath)) {
+            return Response::error('File not found', 404);
+        }
+        
+        $content = file_get_contents($filepath);
+        return new Response($content, 200, [
+            'Content-Type' => 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"'
+        ]);
+    });
+    ```
+  </Tab>
+  <Tab title="API Versioning">
+    ```php
+    Route::get('/api/{version}/users/{id}', function ($request, $version, $id) {
+        if (!in_array($version, ['v1', 'v2'])) {
+            return Response::error('Invalid API version', 400);
+        }
+        
+        return Response::json([
+            'api_version' => $version,
+            'user_id' => $id
+        ]);
+    });
+    ```
+  </Tab>
+  <Tab title="Date-based Archives">
+    ```php
+    Route::get('/blog/{year}/{month}', function ($request, $year, $month) {
+        if (!is_numeric($year) || !is_numeric($month)) {
+            return Response::error('Invalid date format', 400);
+        }
+        
+        if ($month < 1 || $month > 12) {
+            return Response::error('Invalid month', 400);
+        }
+        
+        return Response::json([
+            'year' => (int) $year,
+            'month' => (int) $month,
+            'posts' => []
+        ]);
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+When a route parameter doesn't match your expectations, return appropriate error responses:
+
+```php
+Route::get('/products/{id}', function ($request, $id) {
+    // Validate ID is numeric
+    if (!is_numeric($id)) {
+        return Response::error('Product ID must be numeric', 400);
+    }
+    
+    // Simulate database lookup
+    $product = findProduct((int) $id);
+    
+    if (!$product) {
+        return Response::error('Product not found', 404);
+    }
+    
+    return Response::json($product);
+});
+```
+
+## Route Matching Priority
+
+Routes are matched in the order they are defined. More specific routes should be defined before generic ones:
+
+```php
+// ✅ Correct order
+Route::get('/users/active', function ($request) {
+    return Response::json(['type' => 'active users']);
+});
+
+Route::get('/users/{id}', function ($request, $id) {
+    return Response::json(['user_id' => $id]);
+});
+
+// ❌ Wrong order - '/users/active' would match the parameter route first
+Route::get('/users/{id}', function ($request, $id) {
+    return Response::json(['user_id' => $id]); // 'active' becomes the ID
+});
+
+Route::get('/users/active', function ($request) {
+    return Response::json(['type' => 'active users']); // Never reached!
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Basic Routing" icon="route" href="/routing/basic-routing">
+    Back to basic routing concepts
+  </Card>
+  <Card title="Middleware" icon="filter" href="/routing/middleware">
+    Add middleware to protect and process routes
+  </Card>
+</CardGroup>

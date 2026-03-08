@@ -1,0 +1,693 @@
+---
+title: 'Cache'
+description: 'In-memory caching system for persistent state across requests'
+---
+
+## Overview
+
+The Lyger Cache system provides in-memory caching with TTL support, designed to maintain persistent state across requests without external dependencies like Redis. Built using Rust FFI for high performance.
+
+## Class: `Lyger\Cache\Cache`
+
+Singleton cache manager with automatic expiration handling.
+
+### Getting Instance
+
+```php
+use Lyger\Cache\Cache;
+
+$cache = Cache::getInstance();
+```
+
+<Note>
+The Cache class uses the Singleton pattern. Always use `getInstance()` to get the instance.
+</Note>
+
+## Basic Operations
+
+### put()
+
+Stores a value in the cache with optional TTL.
+
+<ParamField path="key" type="string" required>
+  Cache key
+</ParamField>
+
+<ParamField path="value" type="mixed" required>
+  Value to store (any serializable type)
+</ParamField>
+
+<ParamField path="ttl" type="int|null">
+  Time to live in seconds. Uses default TTL if null.
+</ParamField>
+
+```php
+public function put(string $key, mixed $value, ?int $ttl = null): void
+```
+
+**Examples:**
+
+```php
+$cache = Cache::getInstance();
+
+// Store for default TTL (3600 seconds)
+$cache->put('user:123', $userData);
+
+// Store for 5 minutes
+$cache->put('session:abc', $sessionData, 300);
+
+// Store complex data
+$cache->put('config', [
+    'api_key' => 'xxx',
+    'settings' => ['theme' => 'dark'],
+], 7200);
+```
+
+### get()
+
+Retrieves a value from the cache.
+
+<ParamField path="key" type="string" required>
+  Cache key
+</ParamField>
+
+<ParamField path="default" type="mixed">
+  Default value if key doesn't exist or is expired
+</ParamField>
+
+<ResponseField name="return" type="mixed">
+  Cached value or default
+</ResponseField>
+
+```php
+public function get(string $key, mixed $default = null): mixed
+```
+
+**Examples:**
+
+```php
+// Get user data or null
+$user = $cache->get('user:123');
+
+// Get with default value
+$config = $cache->get('config', ['default' => 'value']);
+
+// Check and use
+if ($data = $cache->get('expensive-query')) {
+    return $data;
+}
+```
+
+### has()
+
+Checks if a key exists and is not expired.
+
+<ParamField path="key" type="string" required>
+  Cache key to check
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if key exists and is not expired
+</ResponseField>
+
+```php
+public function has(string $key): bool
+```
+
+**Example:**
+
+```php
+if ($cache->has('user:123')) {
+    $user = $cache->get('user:123');
+} else {
+    $user = fetchUserFromDatabase(123);
+    $cache->put('user:123', $user, 600);
+}
+```
+
+### forget()
+
+Removes a key from the cache.
+
+<ParamField path="key" type="string" required>
+  Cache key to remove
+</ParamField>
+
+```php
+public function forget(string $key): void
+```
+
+**Example:**
+
+```php
+// Update user and invalidate cache
+updateUser($userId, $data);
+$cache->forget("user:{$userId}");
+```
+
+### flush()
+
+Clears all cached data.
+
+```php
+public function flush(): void
+```
+
+**Example:**
+
+```php
+// Clear all cache
+$cache->flush();
+```
+
+<Note>
+Use `flush()` carefully in production as it removes all cached data.
+</Note>
+
+## TTL Management
+
+### setTtl()
+
+Sets the default TTL for subsequent operations.
+
+<ParamField path="ttl" type="int" required>
+  Default TTL in seconds
+</ParamField>
+
+<ResponseField name="return" type="Cache">
+  Returns self for method chaining
+</ResponseField>
+
+```php
+public function setTtl(int $ttl): self
+```
+
+**Example:**
+
+```php
+// Set default TTL to 10 minutes
+$cache->setTtl(600);
+
+// Subsequent puts use this TTL
+$cache->put('key1', 'value1');  // Expires in 600 seconds
+$cache->put('key2', 'value2');  // Expires in 600 seconds
+
+// Override default TTL for specific key
+$cache->put('key3', 'value3', 1800);  // Expires in 1800 seconds
+```
+
+## Atomic Operations
+
+### increment()
+
+Increments a numeric value atomically.
+
+<ParamField path="key" type="string" required>
+  Cache key
+</ParamField>
+
+<ParamField path="value" type="int">
+  Amount to increment (default: 1)
+</ParamField>
+
+<ResponseField name="return" type="int">
+  New value after increment
+</ResponseField>
+
+```php
+public function increment(string $key, int $value = 1): int
+```
+
+**Example:**
+
+```php
+// Page view counter
+$views = $cache->increment('page:views');  // 1
+$views = $cache->increment('page:views');  // 2
+$views = $cache->increment('page:views', 5);  // 7
+```
+
+### decrement()
+
+Decrements a numeric value atomically.
+
+<ParamField path="key" type="string" required>
+  Cache key
+</ParamField>
+
+<ParamField path="value" type="int">
+  Amount to decrement (default: 1)
+</ParamField>
+
+<ResponseField name="return" type="int">
+  New value after decrement
+</ResponseField>
+
+```php
+public function decrement(string $key, int $value = 1): int
+```
+
+**Example:**
+
+```php
+// Countdown timer
+$remaining = $cache->put('tickets:available', 100);
+$remaining = $cache->decrement('tickets:available');  // 99
+$remaining = $cache->decrement('tickets:available', 10);  // 89
+```
+
+## Remember Pattern
+
+### remember()
+
+Gets cached value or stores result of callback if not exists.
+
+<ParamField path="key" type="string" required>
+  Cache key
+</ParamField>
+
+<ParamField path="callback" type="callable" required>
+  Function to call if cache misses
+</ParamField>
+
+<ParamField path="ttl" type="int|null">
+  Time to live in seconds
+</ParamField>
+
+<ResponseField name="return" type="mixed">
+  Cached or computed value
+</ResponseField>
+
+```php
+public function remember(string $key, callable $callback, ?int $ttl = null): mixed
+```
+
+**Example:**
+
+```php
+// Cache expensive database query
+$users = $cache->remember('active-users', function() {
+    return User::where('active', true)->get();
+}, 600);
+
+// Cache API response
+$weather = $cache->remember('weather:london', function() {
+    return file_get_contents('https://api.weather.com/london');
+}, 1800);
+```
+
+### rememberForever()
+
+Like `remember()` but caches indefinitely.
+
+<ParamField path="key" type="string" required>
+  Cache key
+</ParamField>
+
+<ParamField path="callback" type="callable" required>
+  Function to call if cache misses
+</ParamField>
+
+<ResponseField name="return" type="mixed">
+  Cached or computed value
+</ResponseField>
+
+```php
+public function rememberForever(string $key, callable $callback): mixed
+```
+
+**Example:**
+
+```php
+// Cache configuration that rarely changes
+$config = $cache->rememberForever('app-config', function() {
+    return loadConfigFromFile();
+});
+```
+
+## Batch Operations
+
+### getMultiple()
+
+Gets multiple values at once.
+
+<ParamField path="keys" type="array" required>
+  Array of cache keys
+</ParamField>
+
+<ParamField path="default" type="mixed">
+  Default value for missing keys
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Associative array of key => value pairs
+</ResponseField>
+
+```php
+public function getMultiple(array $keys, mixed $default = null): array
+```
+
+**Example:**
+
+```php
+$data = $cache->getMultiple([
+    'user:123',
+    'user:456',
+    'user:789',
+], null);
+
+// Returns:
+// [
+//     'user:123' => ['name' => 'John'],
+//     'user:456' => null,  // Not found
+//     'user:789' => ['name' => 'Jane'],
+// ]
+```
+
+### putMultiple()
+
+Stores multiple key-value pairs at once.
+
+<ParamField path="values" type="array" required>
+  Associative array of key => value pairs
+</ParamField>
+
+<ParamField path="ttl" type="int|null">
+  Time to live for all values
+</ParamField>
+
+```php
+public function putMultiple(array $values, ?int $ttl = null): void
+```
+
+**Example:**
+
+```php
+$cache->putMultiple([
+    'user:123' => $user123Data,
+    'user:456' => $user456Data,
+    'user:789' => $user789Data,
+], 600);
+```
+
+## Locking
+
+### lock()
+
+Executes a callback with a distributed lock.
+
+<ParamField path="key" type="string" required>
+  Lock key
+</ParamField>
+
+<ParamField path="callback" type="callable" required>
+  Function to execute while locked
+</ParamField>
+
+<ParamField path="seconds" type="int">
+  Lock timeout in seconds (default: 10)
+</ParamField>
+
+<ResponseField name="return" type="mixed">
+  Callback result or null if lock couldn't be acquired
+</ResponseField>
+
+```php
+public function lock(string $key, callable $callback, int $seconds = 10): mixed
+```
+
+**Example:**
+
+```php
+// Ensure only one process updates the cache
+$result = $cache->lock('update-stats', function() use ($cache) {
+    $stats = calculateExpensiveStats();
+    $cache->put('stats', $stats);
+    return $stats;
+}, 30);
+
+if ($result === null) {
+    // Another process holds the lock
+    echo "Update in progress...";
+}
+```
+
+**Lock Use Cases:**
+
+<Tabs>
+  <Tab title="Prevent Race Conditions">
+    ```php
+    // Ensure atomic counter update
+    $cache->lock('process-order', function() use ($orderId, $cache) {
+        $count = $cache->get('orders:processed', 0);
+        processOrder($orderId);
+        $cache->put('orders:processed', $count + 1);
+    });
+    ```
+  </Tab>
+  <Tab title="Cache Warming">
+    ```php
+    // Only one server rebuilds cache
+    $cache->lock('warm-cache', function() use ($cache) {
+        $data = fetchAllProducts();
+        $cache->put('products', $data, 3600);
+    }, 60);
+    ```
+  </Tab>
+  <Tab title="Singleton Task">
+    ```php
+    // Run cleanup only once
+    $cache->lock('daily-cleanup', function() {
+        cleanupOldFiles();
+        cleanupExpiredSessions();
+    }, 300);
+    ```
+  </Tab>
+</Tabs>
+
+## Inspection
+
+### all()
+
+Gets all non-expired cache entries.
+
+<ResponseField name="return" type="array">
+  Array of all cached values (excludes expired entries)
+</ResponseField>
+
+```php
+public function all(): array
+```
+
+**Example:**
+
+```php
+$allCached = $cache->all();
+// Returns: ['key1' => 'value1', 'key2' => 'value2', ...]
+```
+
+### count()
+
+Gets total number of cache entries (including expired).
+
+<ResponseField name="return" type="int">
+  Number of entries
+</ResponseField>
+
+```php
+public function count(): int
+```
+
+**Example:**
+
+```php
+echo "Cache entries: " . $cache->count();
+```
+
+## Practical Examples
+
+### User Session Caching
+
+```php
+use Lyger\Cache\Cache;
+
+class SessionManager
+{
+    private Cache $cache;
+
+    public function __construct()
+    {
+        $this->cache = Cache::getInstance();
+    }
+
+    public function createSession(string $userId): string
+    {
+        $sessionId = bin2hex(random_bytes(16));
+
+        $this->cache->put("session:{$sessionId}", [
+            'user_id' => $userId,
+            'created_at' => time(),
+            'last_activity' => time(),
+        ], 3600); // 1 hour
+
+        return $sessionId;
+    }
+
+    public function getSession(string $sessionId): ?array
+    {
+        return $this->cache->get("session:{$sessionId}");
+    }
+
+    public function refreshSession(string $sessionId): void
+    {
+        if ($session = $this->getSession($sessionId)) {
+            $session['last_activity'] = time();
+            $this->cache->put("session:{$sessionId}", $session, 3600);
+        }
+    }
+
+    public function destroySession(string $sessionId): void
+    {
+        $this->cache->forget("session:{$sessionId}");
+    }
+}
+```
+
+### Rate Limiting
+
+```php
+class RateLimiter
+{
+    private Cache $cache;
+    private int $maxAttempts = 5;
+    private int $decayMinutes = 1;
+
+    public function __construct()
+    {
+        $this->cache = Cache::getInstance();
+    }
+
+    public function tooManyAttempts(string $key): bool
+    {
+        $attempts = $this->cache->get($key, 0);
+        return $attempts >= $this->maxAttempts;
+    }
+
+    public function hit(string $key): int
+    {
+        return $this->cache->increment($key);
+    }
+
+    public function resetAttempts(string $key): void
+    {
+        $this->cache->forget($key);
+    }
+
+    public function attemptsLeft(string $key): int
+    {
+        $attempts = $this->cache->get($key, 0);
+        return max(0, $this->maxAttempts - $attempts);
+    }
+}
+
+// Usage
+$limiter = new RateLimiter();
+$userKey = "rate-limit:user:{$userId}";
+
+if ($limiter->tooManyAttempts($userKey)) {
+    return response('Too many requests', 429);
+}
+
+$limiter->hit($userKey);
+// Process request...
+```
+
+### Query Result Caching
+
+```php
+class ProductRepository
+{
+    private Cache $cache;
+
+    public function __construct()
+    {
+        $this->cache = Cache::getInstance();
+    }
+
+    public function getFeatured(): array
+    {
+        return $this->cache->remember(
+            'products:featured',
+            fn() => $this->fetchFeaturedFromDb(),
+            600
+        );
+    }
+
+    public function getById(int $id): ?array
+    {
+        return $this->cache->remember(
+            "product:{$id}",
+            fn() => $this->fetchProductFromDb($id),
+            3600
+        );
+    }
+
+    public function update(int $id, array $data): void
+    {
+        $this->updateProductInDb($id, $data);
+
+        // Invalidate caches
+        $this->cache->forget("product:{$id}");
+        $this->cache->forget('products:featured');
+    }
+
+    private function fetchFeaturedFromDb(): array
+    {
+        // Database query...
+        return [];
+    }
+
+    private function fetchProductFromDb(int $id): ?array
+    {
+        // Database query...
+        return null;
+    }
+
+    private function updateProductInDb(int $id, array $data): void
+    {
+        // Database update...
+    }
+}
+```
+
+### API Response Caching
+
+```php
+class WeatherService
+{
+    private Cache $cache;
+
+    public function __construct()
+    {
+        $this->cache = Cache::getInstance();
+    }
+
+    public function getCurrentWeather(string $city): array
+    {
+        $cacheKey = "weather:{$city}";
+
+        return $this->cache->remember($cacheKey, function() use ($city) {
+            // Expensive API call
+            $response = file_get_contents(
+                "https://api.weather.com/current?city=" . urlencode($city)
+            );
+
+            return json_decode($response, true);
+        }, 1800); // Cache for 30 minutes
+    }
+}
+```
+
+<Note>
+The Cache system automatically handles expiration. Expired entries are automatically removed when accessed via `get()`, `has()`, or `all()`.
+</Note>

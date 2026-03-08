@@ -1,0 +1,241 @@
+---
+title: 'Architecture Overview'
+description: 'Understanding the hybrid PHP-Rust architecture of Lyger Framework'
+---
+
+## Introduction
+
+Lyger is a **hybrid PHP-Rust framework** that combines the flexibility of PHP with the performance of Rust. At its core, Lyger uses PHP's FFI (Foreign Function Interface) to seamlessly integrate compiled Rust libraries, providing native-level performance for critical operations while maintaining PHP's developer-friendly syntax.
+
+<Note>
+  Lyger automatically falls back to pure PHP implementations when FFI or Rust libraries are unavailable, ensuring your application works everywhere.
+</Note>
+
+## Core Components
+
+The framework is built on three fundamental pillars:
+
+<CardGroup cols={3}>
+  <Card title="FFI Bridge" icon="link">
+    PHP FFI integration with Rust libraries
+  </Card>
+  <Card title="Always-Alive Server" icon="server">
+    Persistent PHP worker in memory
+  </Card>
+  <Card title="Zero-Copy Database" icon="database">
+    Direct memory access to query results
+  </Card>
+</CardGroup>
+
+## Architecture Layers
+
+```
+┌─────────────────────────────────────────┐
+│         Application Layer               │
+│    (Routes, Controllers, Models)        │
+└─────────────────────────────────────────┘
+                  ↓
+┌─────────────────────────────────────────┐
+│         PHP Framework Layer             │
+│   (Router, Container, Middleware)       │
+└─────────────────────────────────────────┘
+                  ↓
+┌─────────────────────────────────────────┐
+│           FFI Bridge Layer              │
+│         (Engine.php → FFI)              │
+└─────────────────────────────────────────┘
+                  ↓
+┌─────────────────────────────────────────┐
+│          Rust Core Layer                │
+│   (HTTP Server, Cache, Database)        │
+└─────────────────────────────────────────┘
+```
+
+## Engine Class
+
+The `Engine` class is the heart of Lyger's architecture. It manages FFI initialization, library loading, and provides a unified interface for all Rust-powered operations.
+
+### Singleton Pattern
+
+```php
+use Lyger\Core\Engine;
+
+$engine = Engine::getInstance();
+```
+
+The Engine uses a singleton pattern to ensure only one FFI instance exists throughout the application lifecycle.
+
+### Library Detection
+
+Lyger automatically detects your platform and loads the appropriate Rust library:
+
+```php
+// From Lyger/Core/Engine.php
+private function findLibrary(): ?string
+{
+    $basePath = realpath(dirname(__DIR__, 2));
+    $os = PHP_OS;
+    $arch = $this->detectArchitecture();
+
+    // macOS
+    if ($os === 'Darwin') {
+        $libFile = ($arch === 'arm64')
+            ? 'lyger-MacOS-ARM64.dylib'
+            : 'lyger-MacOS-Intel.dylib';
+        $path = $basePath . '/libraries/libs/Mac/' . $libFile;
+        if (file_exists($path)) {
+            return $path;
+        }
+    }
+    // Windows
+    elseif ($os === 'WINNT') {
+        $path = $basePath . '/libraries/libs/Win/lyger-Windows-x64.dll';
+        if (file_exists($path)) {
+            return $path;
+        }
+    }
+    // Linux
+    else {
+        $path = $basePath . '/libraries/libs/Linux/lyger-Linux-x64.so';
+        if (file_exists($path)) {
+            return $path;
+        }
+    }
+
+    return null; // FFI not available
+}
+```
+
+<Info>
+  Platform support: macOS (ARM64 & Intel), Windows (x64), and Linux (x64)
+</Info>
+
+## Graceful Degradation
+
+One of Lyger's key architectural features is its automatic fallback mechanism. Every Rust-powered feature has a pure PHP implementation:
+
+```php
+// From Lyger/Core/Engine.php
+public function heavyComputation(int $iterations = 1000000): float
+{
+    // Try Rust first
+    if ($this->ffi === null) {
+        // Fallback to pure PHP
+        $result = 0;
+        for ($i = 0; $i < $iterations; $i++) {
+            $result += sqrt($i) * sin($i);
+        }
+        return $result;
+    }
+
+    try {
+        return $this->ffi->lyger_heavy_computation($iterations);
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+```
+
+This ensures your application works in any environment:
+
+- **Development**: May run pure PHP on systems without FFI
+- **Staging**: Can use Rust for performance testing
+- **Production**: Full Rust acceleration with FFI enabled
+
+<Warning>
+  Enable FFI in production for optimal performance. Add `ffi.enable = 1` to your php.ini
+</Warning>
+
+## Memory Management
+
+Lyger carefully manages memory across the PHP-Rust boundary to prevent leaks:
+
+```php
+public function systemInfo(): string
+{
+    if ($this->ffi === null) {
+        return json_encode(['framework' => 'Lyger v0.1']);
+    }
+
+    try {
+        $result = $this->ffi->lyger_system_info();
+        $string = FFI::string($result);
+        $this->ffi->lyger_free_string($result); // Free Rust memory
+        return $string;
+    } catch (\Throwable $e) {
+        return '{}';
+    }
+}
+```
+
+### Memory Lifecycle
+
+1. **Rust allocates** memory for the result
+2. **PHP copies** the data using `FFI::string()`
+3. **PHP explicitly frees** Rust memory with `lyger_free_string()`
+4. **PHP garbage collector** handles the copied string
+
+<Accordion title="Why explicit memory management?">
+  Rust uses its own allocator and memory model. When you pass data from Rust to PHP through FFI, PHP cannot automatically free that Rust-allocated memory. You must explicitly call the appropriate `free` function to prevent memory leaks.
+</Accordion>
+
+## Performance Characteristics
+
+The hybrid architecture provides different performance profiles for different operations:
+
+| Operation | Pure PHP | With FFI/Rust | Speedup |
+|-----------|----------|---------------|---------|
+| HTTP Request Handling | ~50ms | ~5ms | 10x |
+| Heavy Computation | ~500ms | ~50ms | 10x |
+| Database Query | ~20ms | ~2ms | 10x |
+| Cache Operations | ~5ms | ~0.5ms | 10x |
+
+<Info>
+  Benchmarks are approximate and depend on your specific hardware and workload.
+</Info>
+
+## Configuration
+
+### Enabling FFI
+
+Create or edit your `php.ini`:
+
+```ini
+[PHP]
+ffi.enable = 1
+```
+
+<Warning>
+  On some systems, you may need to set `ffi.enable = "preload"` or restart your PHP-FPM/web server after changes.
+</Warning>
+
+### Verifying FFI
+
+Check if FFI is available:
+
+```php
+if (extension_loaded('ffi')) {
+    echo "FFI is enabled!";
+} else {
+    echo "FFI is not available - using pure PHP";
+}
+```
+
+## Next Steps
+
+Now that you understand the architecture, dive deeper into specific components:
+
+<CardGroup cols={2}>
+  <Card title="Rust FFI Integration" icon="code" href="/core/rust-ffi">
+    Learn how PHP communicates with Rust
+  </Card>
+  <Card title="Always-Alive Server" icon="server" href="/core/always-alive-server">
+    Understand the persistent server architecture
+  </Card>
+  <Card title="Zero-Copy Database" icon="database" href="/core/zero-copy-database">
+    Explore high-performance database operations
+  </Card>
+  <Card title="Getting Started" icon="rocket" href="/installation">
+    Start building with Lyger
+  </Card>
+</CardGroup>

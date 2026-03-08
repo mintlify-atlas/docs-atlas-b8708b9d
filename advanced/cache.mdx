@@ -1,0 +1,303 @@
+---
+title: 'Cache System'
+description: 'High-performance in-memory caching with Rust FFI backend'
+---
+
+Lyger provides a powerful in-memory caching system that persists across requests in Always-Alive mode. The cache is backed by Rust FFI for maximum performance, making it a Redis alternative without external dependencies.
+
+## Basic Usage
+
+The Cache class provides a simple API for storing and retrieving data in memory.
+
+### Storing Data
+
+```php
+use Lyger\Cache\Cache;
+
+$cache = Cache::getInstance();
+
+// Store a value with default TTL (3600 seconds)
+$cache->put('user:123', $userData);
+
+// Store with custom TTL
+$cache->put('session:abc', $sessionData, 1800); // 30 minutes
+
+// Store multiple values
+$cache->putMultiple([
+    'key1' => 'value1',
+    'key2' => 'value2',
+    'key3' => 'value3'
+], 600); // 10 minutes TTL
+```
+
+### Retrieving Data
+
+```php
+// Get a value
+$user = $cache->get('user:123');
+
+// Get with default value if not found
+$user = $cache->get('user:123', ['name' => 'Guest']);
+
+// Check if key exists
+if ($cache->has('user:123')) {
+    $user = $cache->get('user:123');
+}
+
+// Get multiple values
+$values = $cache->getMultiple(['key1', 'key2', 'key3']);
+```
+
+### Removing Data
+
+```php
+// Delete a specific key
+$cache->forget('user:123');
+
+// Clear all cache
+$cache->flush();
+```
+
+## Rust FFI Cache
+
+For maximum performance, Lyger uses Rust FFI for cache operations when available. This provides near-native speed for cache operations.
+
+<CodeGroup>
+
+```php Cache with Rust FFI
+use Lyger\Core\Engine;
+
+$engine = Engine::getInstance();
+
+// Set value (blazingly fast)
+$engine->cacheSet('key', 'value');
+
+// Get value
+$value = $engine->cacheGet('key');
+
+// Delete key
+$engine->cacheDelete('key');
+
+// Clear all cache
+$engine->cacheClear();
+
+// Get cache size
+$size = $engine->cacheSize();
+```
+
+```php PHP Fallback
+use Lyger\Cache\Cache;
+
+$cache = Cache::getInstance();
+
+// Automatic fallback to PHP implementation
+// if FFI is not available
+$cache->put('key', 'value');
+$value = $cache->get('key');
+```
+
+</CodeGroup>
+
+<Note>
+The Rust FFI cache provides 10-100x faster performance compared to PHP arrays or file-based caching. Perfect for high-throughput applications.
+</Note>
+
+## Advanced Features
+
+### Remember Pattern
+
+Cache data with a callback that generates the value if not found:
+
+```php
+$users = $cache->remember('all_users', function() {
+    // This expensive query only runs if cache misses
+    return User::all()->toArray();
+}, 3600);
+
+// Remember forever (no expiration)
+$config = $cache->rememberForever('app_config', function() {
+    return loadConfigFromDatabase();
+});
+```
+
+### Increment & Decrement
+
+Atomic counter operations:
+
+```php
+// Increment counter
+$views = $cache->increment('page_views'); // +1
+$views = $cache->increment('page_views', 5); // +5
+
+// Decrement counter
+$remaining = $cache->decrement('api_limit'); // -1
+$remaining = $cache->decrement('api_limit', 10); // -10
+```
+
+### Cache Locking
+
+Prevent race conditions with cache locks:
+
+```php
+$result = $cache->lock('import_users', function() {
+    // This code runs exclusively
+    // Only one process can execute at a time
+    return importUsersFromAPI();
+}, 10); // Lock timeout: 10 seconds
+
+if ($result === null) {
+    echo "Another process is running";
+}
+```
+
+<Warning>
+Cache locks are simple mutex implementations. For distributed systems, use a dedicated lock service like Redis or a database-based lock.
+</Warning>
+
+## Custom TTL
+
+Set default TTL or override per operation:
+
+```php
+$cache = Cache::getInstance();
+
+// Set default TTL
+$cache->setTtl(7200); // 2 hours
+
+// Override for specific key
+$cache->put('key', 'value', 60); // 1 minute
+
+// Get all cached data
+$allData = $cache->all();
+
+// Count cached items
+$count = $cache->count();
+```
+
+## Real-World Examples
+
+### API Rate Limiting
+
+```php
+function checkRateLimit(string $userId): bool {
+    $cache = Cache::getInstance();
+    $key = "rate_limit:{$userId}";
+    
+    $attempts = $cache->get($key, 0);
+    
+    if ($attempts >= 100) {
+        return false; // Rate limit exceeded
+    }
+    
+    $cache->increment($key);
+    
+    // Set TTL to 1 hour if first request
+    if ($attempts === 0) {
+        $cache->put($key, 1, 3600);
+    }
+    
+    return true;
+}
+```
+
+### Query Result Caching
+
+```php
+function getCachedUsers(array $filters = []): array {
+    $cache = Cache::getInstance();
+    $cacheKey = 'users:' . md5(serialize($filters));
+    
+    return $cache->remember($cacheKey, function() use ($filters) {
+        return User::where($filters)->get()->toArray();
+    }, 600); // 10 minutes
+}
+```
+
+### Session Management
+
+```php
+class Session {
+    private Cache $cache;
+    
+    public function set(string $key, mixed $value): void {
+        $sessionId = $this->getSessionId();
+        $this->cache->put("session:{$sessionId}:{$key}", $value, 1800);
+    }
+    
+    public function get(string $key): mixed {
+        $sessionId = $this->getSessionId();
+        return $this->cache->get("session:{$sessionId}:{$key}");
+    }
+}
+```
+
+## Performance Tips
+
+<Accordion title="Cache Warming">
+Pre-populate cache on application startup:
+
+```php
+// In bootstrap or server start
+$cache = Cache::getInstance();
+
+$cache->put('app_config', loadConfig());
+$cache->put('routes', loadRoutes());
+$cache->put('translations', loadTranslations());
+```
+</Accordion>
+
+<Accordion title="Cache Keys">
+Use consistent, hierarchical naming:
+
+```php
+// Good naming patterns
+$cache->put('user:123:profile', $profile);
+$cache->put('user:123:posts', $posts);
+$cache->put('api:v1:users:list', $users);
+
+// Avoid generic names
+$cache->put('data', $data); // Too generic
+$cache->put('temp', $temp); // Unclear purpose
+```
+</Accordion>
+
+<Accordion title="TTL Strategy">
+Set appropriate TTL based on data volatility:
+
+```php
+// Static data - long TTL
+$cache->put('countries', $countries, 86400); // 24 hours
+
+// Dynamic data - short TTL  
+$cache->put('trending_posts', $posts, 300); // 5 minutes
+
+// User-specific - medium TTL
+$cache->put('user:123:feed', $feed, 1800); // 30 minutes
+```
+</Accordion>
+
+## Comparison with Redis
+
+| Feature | Lyger Cache | Redis |
+|---------|-------------|-------|
+| Speed | Rust FFI (native) | Network I/O |
+| Setup | Built-in | External service |
+| Persistence | In-memory | Disk + Memory |
+| Distribution | Single server | Cluster support |
+| Data structures | Key-value | Rich data types |
+| Best for | Always-Alive mode | Distributed systems |
+
+<Note>
+For distributed applications across multiple servers, use Redis. For single-server Always-Alive applications, Lyger's cache is faster and simpler.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="broadcast-tower" href="/advanced/events">
+    Learn about event broadcasting
+  </Card>
+  <Card title="Jobs & Queues" icon="list-check" href="/advanced/jobs">
+    Background job processing
+  </Card>
+</CardGroup>

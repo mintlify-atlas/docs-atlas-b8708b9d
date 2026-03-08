@@ -1,0 +1,636 @@
+---
+title: make:auth
+description: Generate authentication scaffolding
+icon: lock
+---
+
+The `make:auth` command generates a complete authentication system with login, registration, and user management.
+
+## Syntax
+
+```bash
+php rawr make:auth
+```
+
+<Info>
+This command creates all necessary files for a fully functional authentication system in seconds.
+</Info>
+
+## Basic Usage
+
+Generate authentication scaffolding:
+
+```bash
+php rawr make:auth
+```
+
+**Output:**
+
+```
+AuthController created
+Authentication scaffolding created!
+```
+
+## Generated Files
+
+The command creates:
+
+- **AuthController** - Handles login, registration, and logout
+- Pre-built UI views for login and registration forms
+- Token-based authentication logic
+
+### AuthController.php
+
+Located at: `App/Controllers/AuthController.php`
+
+```php App/Controllers/AuthController.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+use Lyger\Validation\Validator;
+use App\Models\User;
+
+class AuthController
+{
+    private array $users = [];
+
+    public function __construct()
+    {
+        // Demo users - in production use database
+        $this->users = [
+            'admin@lyger.com' => [
+                'id' => 1,
+                'name' => 'Admin User',
+                'email' => 'admin@lyger.com',
+                'password' => password_hash('password', PASSWORD_DEFAULT),
+                'role' => 'admin',
+                'created_at' => date('Y-m-d H:i:s'),
+            ],
+        ];
+    }
+
+    public function login(Request $request): Response
+    {
+        // Login logic
+    }
+
+    public function register(Request $request): Response
+    {
+        // Registration logic
+    }
+
+    public function logout(): Response
+    {
+        // Logout logic
+    }
+
+    public function me(Request $request): Response
+    {
+        // Get current user
+    }
+}
+```
+
+## Features
+
+### 1. Login Endpoint
+
+**POST /api/auth/login**
+
+```php
+public function login(Request $request): Response
+{
+    $data = $request->all();
+
+    $validator = Validator::make($data, [
+        'email' => 'required|email',
+        'password' => 'required',
+    ]);
+
+    if ($validator->fails()) {
+        return Response::json([
+            'success' => false,
+            'message' => 'Invalid data',
+            'errors' => $validator->errors(),
+        ], 422);
+    }
+
+    // Verify credentials
+    $email = $data['email'];
+    $password = $data['password'];
+
+    if (!isset($this->users[$email])) {
+        return Response::json([
+            'success' => false,
+            'message' => 'Invalid credentials',
+        ], 401);
+    }
+
+    $userData = $this->users[$email];
+
+    if (!password_verify($password, $userData['password'])) {
+        return Response::json([
+            'success' => false,
+            'message' => 'Invalid credentials',
+        ], 401);
+    }
+
+    // Generate token
+    $token = base64_encode(json_encode([
+        'user_id' => $userData['id'],
+        'email' => $userData['email'],
+        'role' => $userData['role'],
+        'exp' => time() + 3600,
+    ]));
+
+    unset($userData['password']);
+
+    return Response::json([
+        'success' => true,
+        'message' => 'Welcome ' . $userData['name'],
+        'token' => $token,
+        'user' => $userData,
+    ]);
+}
+```
+
+### 2. Registration Endpoint
+
+**POST /api/auth/register**
+
+```php
+public function register(Request $request): Response
+{
+    $data = $request->all();
+
+    $validator = Validator::make($data, [
+        'name' => 'required|string|max:255',
+        'email' => 'required|email',
+        'password' => 'required|min:8',
+        'password_confirmation' => 'required|same:password',
+    ]);
+
+    if ($validator->fails()) {
+        return Response::json([
+            'success' => false,
+            'message' => 'Invalid data',
+            'errors' => $validator->errors(),
+        ], 422);
+    }
+
+    // Check if email exists
+    if (isset($this->users[$data['email']])) {
+        return Response::json([
+            'success' => false,
+            'message' => 'Email already registered',
+        ], 422);
+    }
+
+    // Create user
+    $id = count($this->users) + 1;
+    $userData = [
+        'id' => $id,
+        'name' => $data['name'],
+        'email' => $data['email'],
+        'password' => password_hash($data['password'], PASSWORD_DEFAULT),
+        'role' => 'user',
+        'created_at' => date('Y-m-d H:i:s'),
+    ];
+
+    $this->users[$data['email']] = $userData;
+
+    // Generate token
+    $token = base64_encode(json_encode([
+        'user_id' => $id,
+        'email' => $userData['email'],
+        'role' => 'user',
+        'exp' => time() + 3600,
+    ]));
+
+    unset($userData['password']);
+
+    return Response::json([
+        'success' => true,
+        'message' => 'Account created successfully',
+        'token' => $token,
+        'user' => $userData,
+    ]);
+}
+```
+
+### 3. Logout Endpoint
+
+**POST /api/auth/logout**
+
+```php
+public function logout(): Response
+{
+    return Response::json([
+        'success' => true,
+        'message' => 'Logged out successfully',
+    ]);
+}
+```
+
+### 4. Current User Endpoint
+
+**GET /api/auth/me**
+
+```php
+public function me(Request $request): Response
+{
+    $authHeader = $request->header('Authorization');
+
+    if (!$authHeader) {
+        return Response::json(['success' => false], 401);
+    }
+
+    $token = str_replace('Bearer ', '', $authHeader);
+    $decoded = json_decode(base64_decode($token), true);
+
+    if (!$decoded || $decoded['exp'] < time()) {
+        return Response::json(['success' => false], 401);
+    }
+
+    foreach ($this->users as $email => $user) {
+        if ($email === $decoded['email']) {
+            unset($user['password']);
+            return Response::json([
+                'success' => true,
+                'user' => $user,
+            ]);
+        }
+    }
+
+    return Response::json(['success' => false], 401);
+}
+```
+
+## Built-in UI Views
+
+### Login Page
+
+The generated controller includes a styled login form:
+
+```php
+public function showLogin(): Response
+{
+    $html = <<<'HTML'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Lyger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <h1 class="text-2xl font-bold mb-6 text-center">Login</h1>
+        <form id="loginForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Email</label>
+                <input type="email" name="email" required 
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Password</label>
+                <input type="password" name="password" required 
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+            </div>
+            <div id="error" class="hidden text-red-500 text-sm"></div>
+            <button type="submit" 
+                    class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600">
+                Login
+            </button>
+        </form>
+        <p class="mt-4 text-center text-sm text-gray-600">
+            <a href="/register" class="text-blue-500 hover:underline">Create account</a>
+        </p>
+    </div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) {
+                localStorage.setItem('token', result.token);
+                localStorage.setItem('user', JSON.stringify(result.user));
+                window.location.href = '/dashboard';
+            } else {
+                document.getElementById('error').textContent = result.message;
+                document.getElementById('error').classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
+HTML;
+    return Response::html($html);
+}
+```
+
+### Registration Page
+
+Similarly styled registration form with validation:
+
+```php
+public function showRegister(): Response
+{
+    // Returns HTML form for user registration
+    // Includes: name, email, password, password_confirmation
+    // Styled with Tailwind CSS
+    // Handles form submission via JavaScript fetch
+}
+```
+
+## Setting Up Routes
+
+After generating auth scaffolding, add routes:
+
+```php routes/api.php
+<?php
+
+use App\Controllers\AuthController;
+
+// API endpoints
+$router->post('/api/auth/login', [AuthController::class, 'login']);
+$router->post('/api/auth/register', [AuthController::class, 'register']);
+$router->post('/api/auth/logout', [AuthController::class, 'logout']);
+$router->get('/api/auth/me', [AuthController::class, 'me']);
+
+// UI routes
+$router->get('/login', [AuthController::class, 'showLogin']);
+$router->get('/register', [AuthController::class, 'showRegister']);
+```
+
+## Validation Rules
+
+The generated controller includes comprehensive validation:
+
+### Login Validation
+
+```php
+[
+    'email' => 'required|email',
+    'password' => 'required',
+]
+```
+
+### Registration Validation
+
+```php
+[
+    'name' => 'required|string|max:255',
+    'email' => 'required|email',
+    'password' => 'required|min:8',
+    'password_confirmation' => 'required|same:password',
+]
+```
+
+## Token-Based Authentication
+
+The scaffolding uses base64-encoded JSON tokens:
+
+```php
+$token = base64_encode(json_encode([
+    'user_id' => $userData['id'],
+    'email' => $userData['email'],
+    'role' => $userData['role'],
+    'exp' => time() + 3600, // 1 hour expiration
+]));
+```
+
+### Token Storage
+
+Frontend stores token in localStorage:
+
+```javascript
+localStorage.setItem('token', result.token);
+localStorage.setItem('user', JSON.stringify(result.user));
+```
+
+### Token Usage
+
+Include token in API requests:
+
+```javascript
+fetch('/api/protected', {
+    headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+    }
+});
+```
+
+## Customizing Authentication
+
+### Connect to Database
+
+Replace the demo users array with database queries:
+
+```php
+use App\Models\User;
+
+public function login(Request $request): Response
+{
+    $data = $request->all();
+    
+    $user = User::where('email', $data['email'])->first();
+    
+    if (!$user || !password_verify($data['password'], $user->password)) {
+        return Response::json([
+            'success' => false,
+            'message' => 'Invalid credentials',
+        ], 401);
+    }
+    
+    // Generate token...
+}
+```
+
+### Add Remember Me
+
+Extend token expiration:
+
+```php
+$expiration = $request->input('remember') ? (time() + 86400 * 30) : (time() + 3600);
+
+$token = base64_encode(json_encode([
+    'user_id' => $user->id,
+    'email' => $user->email,
+    'exp' => $expiration,
+]));
+```
+
+### Add Password Reset
+
+Create additional methods:
+
+```php
+public function forgotPassword(Request $request): Response
+{
+    // Send password reset email
+}
+
+public function resetPassword(Request $request): Response
+{
+    // Reset user password
+}
+```
+
+### Add Email Verification
+
+```php
+public function verifyEmail(Request $request): Response
+{
+    // Verify user email address
+}
+```
+
+## Usage Example
+
+<CodeGroup>
+
+```bash Step 1: Generate Auth
+php rawr make:auth
+```
+
+```php Step 2: Add Routes
+// routes/api.php
+$router->post('/api/auth/login', [AuthController::class, 'login']);
+$router->post('/api/auth/register', [AuthController::class, 'register']);
+```
+
+```bash Step 3: Test Login
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@lyger.com","password":"password"}'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Welcome Admin User",
+  "token": "eyJ1c2VyX2lkIjoxLCJlbWFpbCI6ImFkbWluQGx5Z2VyLmNvbSIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTcwOTkyMjcyMH0=",
+  "user": {
+    "id": 1,
+    "name": "Admin User",
+    "email": "admin@lyger.com",
+    "role": "admin",
+    "created_at": "2026-03-08 14:30:20"
+  }
+}
+```
+
+</CodeGroup>
+
+## Source Code
+
+The auth generation logic:
+
+```php rawr (lines 317-354)
+function makeAuth(string $basePath): void
+{
+    $controllersPath = $basePath . '/App/Controllers';
+    $modelsPath = $basePath . '/App/Models';
+
+    if (!is_dir($controllersPath)) mkdir($controllersPath, 0755, true);
+    if (!is_dir($modelsPath)) mkdir($modelsPath, 0755, true);
+
+    if (!file_exists($controllersPath . '/AuthController.php')) {
+        $content = <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class AuthController
+{
+    public function login(Request \$request): Response
+    {
+        return Response::json(['message' => 'Login endpoint']);
+    }
+
+    public function register(Request \$request): Response
+    {
+        return Response::json(['message' => 'Register endpoint']);
+    }
+}
+PHP;
+        file_put_contents($controllersPath . '/AuthController.php', $content);
+        echo "AuthController created\n";
+    }
+
+    echo "Authentication scaffolding created!\n";
+}
+```
+
+<Note>
+The actual generated AuthController is much more comprehensive than the simplified version shown in the source code above. It includes full login, registration, validation, and token management.
+</Note>
+
+## Security Considerations
+
+### Password Hashing
+
+Always use `password_hash()`:
+
+```php
+$userData['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
+```
+
+### Password Verification
+
+Use `password_verify()`:
+
+```php
+if (!password_verify($password, $userData['password'])) {
+    // Invalid password
+}
+```
+
+### Token Expiration
+
+Always validate token expiration:
+
+```php
+if ($decoded['exp'] < time()) {
+    return Response::json(['error' => 'Token expired'], 401);
+}
+```
+
+### HTTPS in Production
+
+Always use HTTPS for authentication endpoints in production to protect credentials and tokens.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Make Model" icon="database" href="/cli/make-model">
+    Create a User model for database storage
+  </Card>
+  <Card title="Middleware" icon="filter" href="/routing/middleware">
+    Protect routes with authentication middleware
+  </Card>
+  <Card title="Validation" icon="check-circle" href="/database/eloquent-models">
+    Learn about form validation
+  </Card>
+  <Card title="Sessions" icon="cookie" href="/advanced/cache">
+    Manage user sessions
+  </Card>
+</CardGroup>

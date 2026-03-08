@@ -1,0 +1,680 @@
+---
+title: 'Component System'
+description: 'Build reusable UI components with the Lyger component system'
+icon: 'cube'
+---
+
+## Overview
+
+Lyger's component system provides a flexible foundation for building reusable, reactive UI components. Components can be used standalone or integrated with Livewire for enhanced reactivity.
+
+<Info>
+The component system in `Lyger\Components` is designed to work alongside Livewire components, providing additional UI building blocks and patterns.
+</Info>
+
+## Basic Components
+
+### Creating a Component
+
+Extend the `Lyger\Components\Component` base class:
+
+```php
+<?php
+
+namespace App\Components;
+
+use Lyger\Components\Component;
+
+class Card extends Component
+{
+    protected string $title = '';
+    protected string $content = '';
+
+    protected function mount(): void
+    {
+        $this->title = $this->title ?: 'Default Title';
+    }
+
+    protected function renderInline(): string
+    {
+        return <<<HTML
+        <div class="card bg-white shadow-lg rounded-lg p-6">
+            <h3 class="text-xl font-bold mb-4">{$this->title}</h3>
+            <div class="content">{$this->content}</div>
+        </div>
+        HTML;
+    }
+}
+```
+
+### Component Registration
+
+Register components with the ComponentManager:
+
+```php
+use Lyger\Components\ComponentManager;
+use App\Components\Card;
+
+ComponentManager::register('card', Card::class);
+
+// Create instance
+$card = ComponentManager::make('card');
+$card->title = 'Welcome';
+$card->content = 'Hello, World!';
+echo $card->render();
+```
+
+## Component Lifecycle
+
+<Steps>
+  <Step title="Construction">
+    Component is instantiated with `new` or `ComponentManager::make()`.
+  </Step>
+
+  <Step title="Mount">
+    The `mount()` method is called to initialize component state.
+  </Step>
+
+  <Step title="Before Render">
+    The `beforeRender()` method is called before rendering (optional).
+  </Step>
+
+  <Step title="Render">
+    The component is rendered using `render()` which calls `renderView()` or `renderInline()`.
+  </Step>
+</Steps>
+
+### Lifecycle Methods
+
+```php
+class LifecycleExample extends Component
+{
+    protected function mount(): void
+    {
+        // Called once when component is created
+        $this->properties['initialized'] = true;
+    }
+
+    protected function beforeRender(): void
+    {
+        // Called before each render
+        $this->properties['timestamp'] = time();
+    }
+
+    public function render(): string
+    {
+        // Automatically calls beforeRender() then renderView()
+        return parent::render();
+    }
+}
+```
+
+## Views and Templates
+
+### Using External Views
+
+```php
+class UserCard extends Component
+{
+    protected string $view = 'components.user-card';
+
+    protected function mount(): void
+    {
+        $this->properties = [
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+            'avatar' => '/images/avatar.jpg',
+        ];
+    }
+}
+```
+
+Create the view file at `resources/views/components/user-card.php`:
+
+```php
+<div class="user-card">
+    <img src="<?= $avatar ?>" alt="<?= $name ?>">
+    <h3><?= $name ?></h3>
+    <p><?= $email ?></p>
+</div>
+```
+
+### Inline Rendering
+
+Override `renderInline()` for simple components:
+
+```php
+class Badge extends Component
+{
+    protected string $text = '';
+    protected string $color = 'blue';
+
+    protected function renderInline(): string
+    {
+        return "<span class=\"badge bg-{$this->color}-500 text-white px-3 py-1 rounded-full\">{$this->text}</span>";
+    }
+}
+```
+
+## Properties and Data
+
+### Setting Properties
+
+```php
+class DataComponent extends Component
+{
+    protected array $properties = [];
+
+    public function setData(array $data): self
+    {
+        foreach ($data as $key => $value) {
+            $this->setProperty($key, $value);
+        }
+        return $this;
+    }
+
+    public function getData(): array
+    {
+        return $this->properties;
+    }
+}
+
+// Usage
+$component = new DataComponent();
+$component->setData([
+    'title' => 'Product',
+    'price' => 29.99,
+    'stock' => 100,
+]);
+```
+
+### Magic Methods
+
+Components support magic getters and setters:
+
+```php
+$component = new Card();
+$component->title = 'My Title';  // Uses __set()
+$component->description = 'Text content';
+
+echo $component->title;  // Uses __get()
+
+if (isset($component->title)) {  // Uses __isset()
+    // Property exists
+}
+```
+
+## Method Calling
+
+Components can expose methods that can be called dynamically:
+
+```php
+class Calculator extends Component
+{
+    public function add(int $a, int $b): int
+    {
+        return $a + $b;
+    }
+
+    public function multiply(int $a, int $b): int
+    {
+        return $a * $b;
+    }
+}
+
+$calc = new Calculator();
+$result = $calc->call('add', [5, 10]);
+
+// Returns:
+// [
+//     'success' => true,
+//     'data' => 15,
+//     'updates' => []
+// ]
+```
+
+### Error Handling
+
+```php
+$result = $calc->call('nonExistentMethod', []);
+
+// Returns:
+// [
+//     'error' => 'Method nonExistentMethod not found'
+// ]
+```
+
+## Built-in Components
+
+### FormComponent
+
+Create forms with validation and error handling:
+
+<Tabs>
+  <Tab title="Basic Form">
+    ```php
+    use Lyger\Components\FormComponent;
+
+    class ContactForm extends FormComponent
+    {
+        protected function defineFields(): array
+        {
+            return [
+                'name' => [
+                    'type' => 'text',
+                    'label' => 'Full Name',
+                    'placeholder' => 'Enter your name',
+                    'rules' => ['required', 'min:3'],
+                ],
+                'email' => [
+                    'type' => 'email',
+                    'label' => 'Email Address',
+                    'placeholder' => 'you@example.com',
+                    'rules' => ['required', 'email'],
+                ],
+                'message' => [
+                    'type' => 'textarea',
+                    'label' => 'Message',
+                    'placeholder' => 'Your message here...',
+                    'rules' => ['required', 'min:10'],
+                ],
+            ];
+        }
+
+        protected function handleSubmit(): void
+        {
+            // Process the form data
+            $data = $this->values;
+            
+            // Send email, save to database, etc.
+            mail($data['email'], 'Contact Form', $data['message']);
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Select Fields">
+    ```php
+    protected function defineFields(): array
+    {
+        return [
+            'country' => [
+                'type' => 'select',
+                'label' => 'Country',
+                'options' => [
+                    'us' => 'United States',
+                    'uk' => 'United Kingdom',
+                    'ca' => 'Canada',
+                ],
+                'rules' => ['required'],
+            ],
+            'subscribe' => [
+                'type' => 'checkbox',
+                'label' => 'Subscribe to newsletter',
+                'default' => true,
+            ],
+        ];
+    }
+    ```
+  </Tab>
+
+  <Tab title="File Upload">
+    ```php
+    protected function defineFields(): array
+    {
+        return [
+            'avatar' => [
+                'type' => 'file',
+                'label' => 'Profile Picture',
+                'rules' => ['required', 'image', 'max:2048'],
+            ],
+        ];
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Modal Component
+
+Display modal dialogs:
+
+```php
+use Lyger\Components\Modal;
+
+$modal = new Modal();
+$modal->title = 'Confirm Action';
+$modal->size = 'md'; // sm, md, lg, xl, full
+$modal->isOpen = true;
+
+echo $modal->render();
+```
+
+```php
+// Control modal state
+$modal->open();
+$modal->close();
+$modal->toggle();
+```
+
+<Note>
+Modal component includes built-in backdrop and animation support. The size property controls the modal width.
+</Note>
+
+### Table Component
+
+Create sortable data tables:
+
+```php
+use Lyger\Components\Table;
+
+class UserTable extends Table
+{
+    protected function defineColumns(): array
+    {
+        return [
+            'id' => [
+                'label' => 'ID',
+                'sortable' => true,
+            ],
+            'name' => [
+                'label' => 'Name',
+                'sortable' => true,
+            ],
+            'email' => [
+                'label' => 'Email',
+                'sortable' => false,
+            ],
+            'created_at' => [
+                'label' => 'Created',
+                'sortable' => true,
+                'format' => fn($value) => date('Y-m-d', strtotime($value)),
+            ],
+        ];
+    }
+
+    protected function getData(): array
+    {
+        return User::all();
+    }
+}
+
+$table = new UserTable();
+echo $table->render();
+```
+
+#### Table Actions
+
+Add action buttons to table rows:
+
+```php
+class UserTable extends Table
+{
+    protected function mount(): void
+    {
+        parent::mount();
+        
+        $this->actions = [
+            [
+                'label' => 'Edit',
+                'url' => fn($row) => "/users/{$row['id']}/edit",
+                'class' => 'text-blue-600 hover:text-blue-900',
+            ],
+            [
+                'label' => 'Delete',
+                'url' => fn($row) => "/users/{$row['id']}/delete",
+                'class' => 'text-red-600 hover:text-red-900',
+            ],
+        ];
+    }
+}
+```
+
+#### Sorting
+
+```php
+// Sort by column
+$table->sort('name');  // First click: ascending
+$table->sort('name');  // Second click: descending
+```
+
+### Alert Component
+
+Display notifications and messages:
+
+<CodeGroup>
+```php Success Alert
+use Lyger\Components\Alert;
+
+$alert = new Alert();
+$alert->type = 'success';
+$alert->message = 'Your changes have been saved!';
+$alert->dismissible = true;
+
+echo $alert->render();
+```
+
+```php Error Alert
+$alert = new Alert();
+$alert->type = 'error';
+$alert->message = 'An error occurred. Please try again.';
+$alert->dismissible = false;
+
+echo $alert->render();
+```
+
+```php Warning Alert
+$alert = new Alert();
+$alert->type = 'warning';
+$alert->message = 'Your session will expire soon.';
+$alert->dismissible = true;
+
+echo $alert->render();
+```
+
+```php Info Alert
+$alert = new Alert();
+$alert->type = 'info';
+$alert->message = 'New features are available!';
+$alert->dismissible = true;
+
+echo $alert->render();
+```
+</CodeGroup>
+
+## Events and Communication
+
+### Emitting Events
+
+```php
+class EventEmitter extends Component
+{
+    public function triggerAction()
+    {
+        $result = $this->emit('actionTriggered', [
+            'timestamp' => time(),
+            'user' => 'John',
+        ]);
+        
+        return $result;
+    }
+}
+```
+
+### Event Data Structure
+
+```php
+[
+    'event' => 'actionTriggered',
+    'data' => [
+        'timestamp' => 1234567890,
+        'user' => 'John',
+    ],
+]
+```
+
+## Validation
+
+Components support data validation:
+
+```php
+class ValidatedComponent extends Component
+{
+    protected array $properties = [
+        'email' => '',
+        'age' => 0,
+    ];
+
+    public function save()
+    {
+        try {
+            $validated = $this->validate([
+                'email' => ['required', 'email'],
+                'age' => ['required', 'integer', 'min:18'],
+            ], [
+                'email.required' => 'Email is required',
+                'age.min' => 'You must be at least 18 years old',
+            ]);
+
+            // Use validated data
+            return ['success' => true, 'data' => $validated];
+        } catch (ValidationException $e) {
+            return ['success' => false, 'errors' => $e->getErrors()];
+        }
+    }
+}
+```
+
+## AJAX Handler
+
+Components can handle AJAX requests:
+
+```php
+use Lyger\Components\LiveHandler;
+
+// Handle incoming request
+$request = [
+    'component' => 'user-card',
+    'method' => 'updateProfile',
+    'params' => ['John Doe', 'john@example.com'],
+    'properties' => [
+        'userId' => 123,
+    ],
+];
+
+$response = LiveHandler::handle($request);
+
+// Response format:
+// [
+//     'success' => true,
+//     'data' => [...],
+//     'updates' => [...]
+// ]
+```
+
+## Slots
+
+Components support slot-based content injection:
+
+```php
+use Lyger\Components\Slot;
+
+class LayoutComponent extends Component
+{
+    protected function renderInline(): string
+    {
+        return <<<HTML
+        <div class="layout">
+            <header>{{$header}}</header>
+            <main>{{$slot}}</main>
+            <footer>{{$footer}}</footer>
+        </div>
+        HTML;
+    }
+}
+
+// Usage
+$layout = new LayoutComponent();
+$layout->header = new Slot('<h1>Site Title</h1>');
+$layout->slot = new Slot('<p>Main content</p>');
+$layout->footer = new Slot('<p>&copy; 2026</p>');
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Component Composition">
+    Build complex UIs by composing smaller, focused components rather than creating monolithic ones.
+  </Step>
+
+  <Step title="Separate Concerns">
+    Keep presentation logic in components and business logic in services or models.
+  </Step>
+
+  <Step title="Reusability">
+    Design components to be reusable across different contexts by using properties and configuration.
+  </Step>
+
+  <Step title="Type Safety">
+    Use PHP type declarations for component properties and method parameters.
+  </Step>
+
+  <Step title="Documentation">
+    Document component properties, methods, and usage examples for your team.
+  </Step>
+</Steps>
+
+## API Reference
+
+### Component Methods
+
+| Method | Description |
+|--------|-------------|
+| `mount()` | Called when component is created |
+| `beforeRender()` | Called before rendering |
+| `render()` | Renders the component |
+| `renderView()` | Renders from external view file |
+| `renderInline()` | Renders inline template |
+| `toArray()` | Returns component as array |
+| `call($method, $params)` | Calls component method |
+| `emit($event, $data)` | Emits event |
+| `validate($rules, $messages)` | Validates properties |
+| `setProperty($key, $value)` | Sets property |
+| `getProperty($key)` | Gets property |
+| `refresh()` | Refreshes component |
+
+### ComponentManager Methods
+
+| Method | Description |
+|--------|-------------|
+| `register($name, $class)` | Registers component |
+| `make($name)` | Creates component instance |
+| `getRegistered()` | Gets all registered components |
+
+### FormComponent Methods
+
+| Method | Description |
+|--------|-------------|
+| `defineFields()` | Defines form fields |
+| `submit()` | Submits form |
+| `value($name)` | Gets field value |
+| `setValue($name, $value)` | Sets field value |
+| `error($name)` | Gets field error |
+| `hasError($name)` | Checks if field has error |
+| `renderFields()` | Renders all fields |
+| `renderField($name, $field)` | Renders single field |
+
+### Table Methods
+
+| Method | Description |
+|--------|-------------|
+| `defineColumns()` | Defines table columns |
+| `getData()` | Gets table data |
+| `sort($column)` | Sorts by column |
+
+### Modal Methods
+
+| Method | Description |
+|--------|-------------|
+| `open()` | Opens modal |
+| `close()` | Closes modal |
+| `toggle()` | Toggles modal state |

@@ -1,0 +1,536 @@
+---
+title: 'Model'
+description: 'Base class for all Eloquent-style models in Lyger'
+---
+
+## Overview
+
+The `Model` class provides an Eloquent-style ORM interface for interacting with database tables. It supports relationships, query building, mass assignment protection, attribute casting, and timestamps.
+
+## Class Reference
+
+### Lyger\Database\Model
+
+Base class for all Eloquent models, inspired by Laravel Eloquent.
+
+**Location:** `Lyger/Database/Model.php`
+
+## Properties
+
+<ParamField path="$table" type="string">
+The database table associated with the model. If not set, defaults to the pluralized, snake_case class name.
+</ParamField>
+
+<ParamField path="$primaryKey" type="string" default="'id'">
+The primary key for the model.
+</ParamField>
+
+<ParamField path="$fillable" type="array" default="[]">
+The attributes that are mass assignable.
+</ParamField>
+
+<ParamField path="$hidden" type="array" default="[]">
+The attributes that should be hidden for serialization.
+</ParamField>
+
+<ParamField path="$casts" type="array" default="[]">
+The attributes that should be cast to native types.
+</ParamField>
+
+<ParamField path="$dates" type="array" default="['created_at', 'updated_at', 'deleted_at']">
+The attributes that should be mutated to dates.
+</ParamField>
+
+<ParamField path="$timestamps" type="bool" default="true">
+Indicates if the model should be timestamped.
+</ParamField>
+
+## Methods
+
+### Constructor
+
+```php
+public function __construct(array $attributes = [])
+```
+
+Create a new model instance with optional attributes.
+
+<ParamField path="attributes" type="array" default="[]">
+Initial attributes for the model
+</ParamField>
+
+**Example:**
+```php
+$user = new User([
+    'name' => 'John Doe',
+    'email' => 'john@example.com'
+]);
+```
+
+### Query Methods
+
+#### query()
+
+```php
+public static function query(): QueryBuilder
+```
+
+Get a new query builder instance for the model.
+
+**Returns:** `QueryBuilder` instance
+
+**Example:**
+```php
+$users = User::query()
+    ->where('active', '=', 1)
+    ->orderBy('created_at', 'DESC')
+    ->get();
+```
+
+#### find()
+
+```php
+public static function find($id): ?static
+```
+
+Find a model by its primary key.
+
+<ParamField path="id" type="mixed">
+The primary key value
+</ParamField>
+
+**Returns:** Model instance or `null` if not found
+
+**Example:**
+```php
+$user = User::find(1);
+if ($user) {
+    echo $user->name;
+}
+```
+
+#### findOrFail()
+
+```php
+public static function findOrFail($id): static
+```
+
+Find a model by its primary key or throw an exception.
+
+<ParamField path="id" type="mixed">
+The primary key value
+</ParamField>
+
+**Returns:** Model instance
+
+**Throws:** `\RuntimeException` if model not found
+
+**Example:**
+```php
+try {
+    $user = User::findOrFail(999);
+} catch (\RuntimeException $e) {
+    echo "User not found!";
+}
+```
+
+#### all()
+
+```php
+public static function all(): Collection
+```
+
+Get all records from the database.
+
+**Returns:** `Collection` of model instances
+
+**Example:**
+```php
+$users = User::all();
+foreach ($users as $user) {
+    echo $user->name;
+}
+```
+
+#### create()
+
+```php
+public static function create(array $attributes): static
+```
+
+Create and save a new model instance.
+
+<ParamField path="attributes" type="array">
+The attributes for the new model
+</ParamField>
+
+**Returns:** Created model instance
+
+**Example:**
+```php
+$user = User::create([
+    'name' => 'Jane Doe',
+    'email' => 'jane@example.com'
+]);
+```
+
+### Instance Methods
+
+#### fill()
+
+```php
+public function fill(array $attributes): self
+```
+
+Fill the model with an array of attributes. Only fills `$fillable` attributes.
+
+<ParamField path="attributes" type="array">
+Attributes to fill
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$user = new User();
+$user->fill([
+    'name' => 'John',
+    'email' => 'john@example.com'
+]);
+```
+
+#### save()
+
+```php
+public function save(): bool
+```
+
+Save the model to the database. Performs an update if the model exists, otherwise inserts a new record.
+
+**Returns:** `true` on success, `false` on failure
+
+**Example:**
+```php
+$user = new User();
+$user->name = 'John Doe';
+$user->email = 'john@example.com';
+$user->save();
+
+// Or update existing
+$user = User::find(1);
+$user->name = 'Jane Doe';
+$user->save();
+```
+
+#### delete()
+
+```php
+public function delete(): bool
+```
+
+Delete the model from the database.
+
+**Returns:** `true` if deleted, `false` otherwise
+
+**Example:**
+```php
+$user = User::find(1);
+$user->delete();
+```
+
+#### toArray()
+
+```php
+public function toArray(): array
+```
+
+Convert the model to an array, respecting `$hidden` attributes and applying casts.
+
+**Returns:** Array representation of the model
+
+**Example:**
+```php
+$user = User::find(1);
+$data = $user->toArray();
+// ['id' => 1, 'name' => 'John', 'email' => 'john@example.com']
+```
+
+#### toJson()
+
+```php
+public function toJson(int $options = 0): string
+```
+
+Convert the model to JSON.
+
+<ParamField path="options" type="int" default="0">
+JSON encoding options
+</ParamField>
+
+**Returns:** JSON string
+
+**Example:**
+```php
+$user = User::find(1);
+echo $user->toJson(JSON_PRETTY_PRINT);
+```
+
+#### getKey()
+
+```php
+public function getKey(): mixed
+```
+
+Get the primary key value for the model.
+
+**Returns:** Primary key value or `null`
+
+**Example:**
+```php
+$user = User::find(1);
+echo $user->getKey(); // 1
+```
+
+### Relationship Methods
+
+#### hasOne()
+
+```php
+public function hasOne(string $related, string $foreignKey = null): HasOne
+```
+
+Define a one-to-one relationship.
+
+<ParamField path="related" type="string">
+The related model class name
+</ParamField>
+
+<ParamField path="foreignKey" type="string" optional>
+The foreign key name (defaults to `{model}_id`)
+</ParamField>
+
+**Returns:** `HasOne` relationship instance
+
+**Example:**
+```php
+class User extends Model
+{
+    public function profile()
+    {
+        return $this->hasOne(Profile::class);
+    }
+}
+
+$user = User::find(1);
+$profile = $user->profile();
+```
+
+#### hasMany()
+
+```php
+public function hasMany(string $related, string $foreignKey = null): HasMany
+```
+
+Define a one-to-many relationship.
+
+<ParamField path="related" type="string">
+The related model class name
+</ParamField>
+
+<ParamField path="foreignKey" type="string" optional>
+The foreign key name (defaults to `{model}_id`)
+</ParamField>
+
+**Returns:** `HasMany` relationship instance
+
+**Example:**
+```php
+class User extends Model
+{
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+}
+
+$user = User::find(1);
+$posts = $user->posts();
+```
+
+#### belongsTo()
+
+```php
+public function belongsTo(string $related, string $foreignKey = null): BelongsTo
+```
+
+Define an inverse one-to-one or one-to-many relationship.
+
+<ParamField path="related" type="string">
+The related model class name
+</ParamField>
+
+<ParamField path="foreignKey" type="string" optional>
+The foreign key name
+</ParamField>
+
+**Returns:** `BelongsTo` relationship instance
+
+**Example:**
+```php
+class Post extends Model
+{
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+
+$post = Post::find(1);
+$user = $post->user();
+```
+
+#### belongsToMany()
+
+```php
+public function belongsToMany(string $related, string $pivotTable = null): BelongsToMany
+```
+
+Define a many-to-many relationship.
+
+<ParamField path="related" type="string">
+The related model class name
+</ParamField>
+
+<ParamField path="pivotTable" type="string" optional>
+The pivot table name (defaults to alphabetically sorted model names)
+</ParamField>
+
+**Returns:** `BelongsToMany` relationship instance
+
+**Example:**
+```php
+class User extends Model
+{
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class);
+    }
+}
+
+$user = User::find(1);
+$roles = $user->roles();
+```
+
+## Usage Examples
+
+### Basic Model Definition
+
+```php
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class User extends Model
+{
+    protected string $table = 'users';
+    
+    protected array $fillable = [
+        'name',
+        'email',
+        'password'
+    ];
+    
+    protected array $hidden = [
+        'password'
+    ];
+    
+    protected array $casts = [
+        'email_verified' => 'bool',
+        'created_at' => 'datetime'
+    ];
+}
+```
+
+### Attribute Casting
+
+```php
+class Product extends Model
+{
+    protected array $casts = [
+        'price' => 'float',
+        'in_stock' => 'bool',
+        'metadata' => 'array',
+        'tags' => 'json'
+    ];
+}
+
+$product = Product::find(1);
+$price = $product->price; // Automatically cast to float
+$inStock = $product->in_stock; // Automatically cast to boolean
+```
+
+<Expandable title="Available Cast Types">
+- `int`, `integer` - Cast to integer
+- `float`, `double` - Cast to float
+- `bool`, `boolean` - Cast to boolean
+- `string` - Cast to string
+- `array` - JSON decode to array
+- `json` - JSON encode from array
+- `datetime`, `date` - Date handling
+</Expandable>
+
+### Magic Methods
+
+The Model class supports magic property access:
+
+```php
+$user = User::find(1);
+
+// Get attribute
+echo $user->name;
+
+// Set attribute
+$user->name = 'John Doe';
+
+// Check if attribute exists
+if (isset($user->email)) {
+    echo $user->email;
+}
+
+// Unset attribute
+unset($user->temporary_field);
+```
+
+### Timestamps
+
+Models automatically manage `created_at` and `updated_at` timestamps:
+
+```php
+$user = new User();
+$user->name = 'John';
+$user->save();
+// created_at and updated_at are automatically set
+
+$user->name = 'Jane';
+$user->save();
+// updated_at is automatically updated
+```
+
+<Note>
+To disable timestamps, set `protected bool $timestamps = false` in your model.
+</Note>
+
+## Best Practices
+
+<Note>
+- Always define `$fillable` to protect against mass assignment vulnerabilities
+- Use `$hidden` to exclude sensitive attributes from JSON/array conversion
+- Define relationships in dedicated methods for better organization
+- Use attribute casting for type safety
+</Note>
+
+## Related
+
+- [QueryBuilder](/api/query-builder) - Fluent query builder interface
+- [Schema](/api/schema) - Database schema builder
+- [Migration](/api/migration) - Database migration system

@@ -1,0 +1,591 @@
+---
+title: make:dash
+description: Create a customizable admin dashboard
+icon: gauge
+---
+
+The `make:dash` command generates a fully functional admin dashboard controller with a customizable name.
+
+## Syntax
+
+```bash
+php rawr make:dash [Name]
+```
+
+<ParamField path="Name" type="string">
+  Optional name prefix for the dashboard (defaults to "Admin")
+</ParamField>
+
+## Basic Usage
+
+Create an admin dashboard with default name:
+
+```bash
+php rawr make:dash
+```
+
+**Output:**
+
+```
+Dashboard controller created: App/Controllers/AdminDashboardController.php
+```
+
+## Custom Dashboard Name
+
+Create a dashboard with a custom name:
+
+```bash
+php rawr make:dash Sales
+```
+
+**Output:**
+
+```
+Dashboard controller created: App/Controllers/SalesDashboardController.php
+```
+
+<Info>
+The command automatically appends "DashboardController" to your chosen name, so you only need to specify the prefix.
+</Info>
+
+## Generated Controller
+
+The command creates a controller with an admin panel integration:
+
+```php App/Controllers/AdminDashboardController.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+use Lyger\Admin\AdminPanel;
+
+class AdminDashboardController
+{
+    public function index(): Response
+    {
+        $panel = new AdminPanel();
+        $panel->setTitle('Admin Dashboard');
+        return Response::html($panel->render());
+    }
+}
+```
+
+## Dashboard Features
+
+### AdminPanel Class
+
+The generated controller uses Lyger's `AdminPanel` class:
+
+```php
+use Lyger\Admin\AdminPanel;
+
+$panel = new AdminPanel();
+$panel->setTitle('Admin Dashboard');
+return Response::html($panel->render());
+```
+
+### Customizable Title
+
+Set a custom dashboard title:
+
+```php
+$panel->setTitle('Sales Dashboard');
+$panel->setTitle('Analytics Dashboard');
+$panel->setTitle('Customer Management');
+```
+
+## Common Dashboard Types
+
+### Admin Dashboard (Default)
+
+```bash
+php rawr make:dash
+# or
+php rawr make:dash Admin
+```
+
+```php App/Controllers/AdminDashboardController.php
+class AdminDashboardController
+{
+    public function index(): Response
+    {
+        $panel = new AdminPanel();
+        $panel->setTitle('Admin Dashboard');
+        return Response::html($panel->render());
+    }
+}
+```
+
+### Analytics Dashboard
+
+```bash
+php rawr make:dash Analytics
+```
+
+```php App/Controllers/AnalyticsDashboardController.php
+class AnalyticsDashboardController
+{
+    public function index(): Response
+    {
+        $panel = new AdminPanel();
+        $panel->setTitle('Analytics Dashboard');
+        return Response::html($panel->render());
+    }
+}
+```
+
+### Customer Dashboard
+
+```bash
+php rawr make:dash Customer
+```
+
+```php App/Controllers/CustomerDashboardController.php
+class CustomerDashboardController
+{
+    public function index(): Response
+    {
+        $panel = new AdminPanel();
+        $panel->setTitle('Customer Dashboard');
+        return Response::html($panel->render());
+    }
+}
+```
+
+## Customizing Dashboards
+
+### Add Widgets
+
+Extend the controller to add custom widgets:
+
+```php
+class AdminDashboardController
+{
+    public function index(): Response
+    {
+        $panel = new AdminPanel();
+        $panel->setTitle('Admin Dashboard');
+        
+        // Add custom widgets
+        $panel->addWidget('stats', $this->getStats());
+        $panel->addWidget('recent_users', $this->getRecentUsers());
+        $panel->addWidget('revenue', $this->getRevenue());
+        
+        return Response::html($panel->render());
+    }
+    
+    private function getStats(): array
+    {
+        return [
+            'total_users' => 1250,
+            'total_orders' => 3480,
+            'revenue' => 89500.00,
+        ];
+    }
+    
+    private function getRecentUsers(): array
+    {
+        return User::orderBy('created_at', 'desc')->limit(5)->get();
+    }
+    
+    private function getRevenue(): array
+    {
+        return Order::selectRaw('DATE(created_at) as date, SUM(total) as revenue')
+            ->groupBy('date')
+            ->limit(30)
+            ->get();
+    }
+}
+```
+
+### Add Charts
+
+Include data visualization:
+
+```php
+class SalesDashboardController
+{
+    public function index(): Response
+    {
+        $panel = new AdminPanel();
+        $panel->setTitle('Sales Dashboard');
+        
+        // Add chart data
+        $panel->addChart('sales_trend', [
+            'type' => 'line',
+            'data' => $this->getSalesTrend(),
+            'labels' => $this->getLast30Days(),
+        ]);
+        
+        return Response::html($panel->render());
+    }
+    
+    private function getSalesTrend(): array
+    {
+        // Return sales data for last 30 days
+        return Order::selectRaw('DATE(created_at) as date, SUM(total) as total')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->groupBy('date')
+            ->pluck('total')
+            ->toArray();
+    }
+    
+    private function getLast30Days(): array
+    {
+        return Order::selectRaw('DATE(created_at) as date')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->groupBy('date')
+            ->pluck('date')
+            ->toArray();
+    }
+}
+```
+
+### Add Tables
+
+Display data tables:
+
+```php
+class CustomerDashboardController
+{
+    public function index(): Response
+    {
+        $panel = new AdminPanel();
+        $panel->setTitle('Customer Dashboard');
+        
+        // Add data table
+        $panel->addTable('customers', [
+            'headers' => ['ID', 'Name', 'Email', 'Orders', 'Total Spent'],
+            'rows' => $this->getCustomerData(),
+        ]);
+        
+        return Response::html($panel->render());
+    }
+    
+    private function getCustomerData(): array
+    {
+        return User::with('orders')
+            ->get()
+            ->map(function ($user) {
+                return [
+                    $user->id,
+                    $user->name,
+                    $user->email,
+                    $user->orders->count(),
+                    '$' . number_format($user->orders->sum('total'), 2),
+                ];
+            })
+            ->toArray();
+    }
+}
+```
+
+## Setting Up Routes
+
+After creating a dashboard, register the route:
+
+```php routes/web.php
+<?php
+
+use App\Controllers\AdminDashboardController;
+
+$router->get('/admin', [AdminDashboardController::class, 'index']);
+```
+
+For multiple dashboards:
+
+```php routes/web.php
+<?php
+
+use App\Controllers\AdminDashboardController;
+use App\Controllers\SalesDashboardController;
+use App\Controllers\AnalyticsDashboardController;
+
+$router->get('/admin', [AdminDashboardController::class, 'index']);
+$router->get('/admin/sales', [SalesDashboardController::class, 'index']);
+$router->get('/admin/analytics', [AnalyticsDashboardController::class, 'index']);
+```
+
+## Protecting Dashboards
+
+Add authentication middleware to protect dashboard routes:
+
+```php routes/web.php
+use App\Middleware\AuthMiddleware;
+
+$router->group(['middleware' => AuthMiddleware::class], function ($router) {
+    $router->get('/admin', [AdminDashboardController::class, 'index']);
+    $router->get('/admin/sales', [SalesDashboardController::class, 'index']);
+});
+```
+
+Or check authentication within the controller:
+
+```php
+class AdminDashboardController
+{
+    public function index(Request $request): Response
+    {
+        // Check if user is authenticated
+        if (!$request->user()) {
+            return Response::redirect('/login');
+        }
+        
+        // Check if user is admin
+        if (!$request->user()->isAdmin()) {
+            return Response::json(['error' => 'Unauthorized'], 403);
+        }
+        
+        $panel = new AdminPanel();
+        $panel->setTitle('Admin Dashboard');
+        return Response::html($panel->render());
+    }
+}
+```
+
+## Error Handling
+
+### Missing Name (Uses Default)
+
+```bash
+php rawr make:dash
+```
+
+Creates `AdminDashboardController` with "Admin" as default name.
+
+### Duplicate Dashboard
+
+```bash
+php rawr make:dash Admin
+# Run again
+php rawr make:dash Admin
+```
+
+**Output:**
+
+```
+Error: Dashboard controller already exists
+```
+
+## Complete Example
+
+<CodeGroup>
+
+```bash Step 1: Create Dashboard
+php rawr make:dash Sales
+```
+
+```php Step 2: Customize Controller
+// App/Controllers/SalesDashboardController.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+use Lyger\Admin\AdminPanel;
+use App\Models\Order;
+
+class SalesDashboardController
+{
+    public function index(Request $request): Response
+    {
+        $panel = new AdminPanel();
+        $panel->setTitle('Sales Dashboard');
+        
+        // Add statistics
+        $panel->addWidget('total_sales', [
+            'title' => 'Total Sales',
+            'value' => Order::sum('total'),
+            'icon' => 'dollar-sign'
+        ]);
+        
+        $panel->addWidget('total_orders', [
+            'title' => 'Total Orders',
+            'value' => Order::count(),
+            'icon' => 'shopping-cart'
+        ]);
+        
+        $panel->addWidget('avg_order', [
+            'title' => 'Average Order',
+            'value' => Order::avg('total'),
+            'icon' => 'trending-up'
+        ]);
+        
+        return Response::html($panel->render());
+    }
+}
+```
+
+```php Step 3: Add Route
+// routes/web.php
+use App\Controllers\SalesDashboardController;
+
+$router->get('/admin/sales', [SalesDashboardController::class, 'index']);
+```
+
+```bash Step 4: Visit Dashboard
+# Start server
+php rawr serve
+
+# Navigate to
+http://localhost:8000/admin/sales
+```
+
+</CodeGroup>
+
+## Source Code
+
+The dashboard generation logic:
+
+```php rawr (lines 356-395)
+function makeDash(string $basePath, ?string $name): void
+{
+    $name = $name ?: 'Admin';
+    $controllerName = $name . 'DashboardController';
+
+    $controllersPath = $basePath . '/App/Controllers';
+    if (!is_dir($controllersPath)) mkdir($controllersPath, 0755, true);
+
+    $controllerPath = $controllersPath . '/' . $controllerName . '.php';
+
+    if (file_exists($controllerPath)) {
+        echo "Error: Dashboard controller already exists\n";
+        exit(1);
+    }
+
+    $content = <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+use Lyger\Admin\AdminPanel;
+
+class {$controllerName}
+{
+    public function index(): Response
+    {
+        \$panel = new AdminPanel();
+        \$panel->setTitle('{$name} Dashboard');
+        return Response::html(\$panel->render());
+    }
+}
+PHP;
+
+    file_put_contents($controllerPath, $content);
+    echo "Dashboard controller created: App/Controllers/{$controllerName}.php\n";
+}
+```
+
+## Dashboard Layout Ideas
+
+### Multi-Column Layout
+
+```php
+$panel->setLayout('3-column');
+$panel->addWidget('left', $leftContent);
+$panel->addWidget('center', $centerContent);
+$panel->addWidget('right', $rightContent);
+```
+
+### Tabbed Interface
+
+```php
+$panel->addTab('overview', 'Overview', $overviewContent);
+$panel->addTab('reports', 'Reports', $reportsContent);
+$panel->addTab('settings', 'Settings', $settingsContent);
+```
+
+### Responsive Cards
+
+```php
+$panel->addCard([
+    'title' => 'Recent Activity',
+    'content' => $activityHtml,
+    'footer' => '<a href="/activity">View All</a>',
+]);
+```
+
+## Advanced Features
+
+### Real-time Updates
+
+Add WebSocket support for live data:
+
+```php
+class AdminDashboardController
+{
+    public function index(): Response
+    {
+        $panel = new AdminPanel();
+        $panel->setTitle('Admin Dashboard');
+        $panel->enableRealtime(true);
+        $panel->setUpdateInterval(5000); // 5 seconds
+        return Response::html($panel->render());
+    }
+    
+    public function getData(): Response
+    {
+        return Response::json([
+            'stats' => $this->getStats(),
+            'timestamp' => time(),
+        ]);
+    }
+}
+```
+
+### Export Functionality
+
+Add data export capabilities:
+
+```php
+public function export(Request $request): Response
+{
+    $format = $request->input('format', 'csv');
+    $data = $this->getReportData();
+    
+    if ($format === 'csv') {
+        return Response::csv($data, 'dashboard-export.csv');
+    }
+    
+    return Response::json($data);
+}
+```
+
+### Custom Styling
+
+Override default AdminPanel styles:
+
+```php
+$panel = new AdminPanel();
+$panel->setTheme('dark');
+$panel->setAccentColor('#4F46E5');
+$panel->setCustomCSS('/css/custom-dashboard.css');
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AdminPanel Class" icon="panel-ews" href="/advanced/admin-dashboard">
+    Learn about AdminPanel features
+  </Card>
+  <Card title="Middleware" icon="shield" href="/routing/middleware">
+    Protect dashboard routes
+  </Card>
+  <Card title="Make Controller" icon="file-code" href="/cli/make-controller">
+    Create additional controllers
+  </Card>
+  <Card title="Routing" icon="route" href="/routing/basic-routing">
+    Configure dashboard routes
+  </Card>
+</CardGroup>

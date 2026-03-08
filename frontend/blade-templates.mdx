@@ -1,0 +1,736 @@
+---
+title: 'Blade Templates'
+description: 'Use Blade templating engine for dynamic views in Lyger'
+icon: 'code'
+---
+
+## Overview
+
+Lyger includes a lightweight Blade-inspired templating engine for rendering dynamic views. The Blade engine provides a clean syntax for working with PHP templates, layouts, and components.
+
+<Note>
+Lyger's Blade implementation (`Lyger\Livewire\Blade`) is a simplified version designed for performance and ease of use.
+</Note>
+
+## Basic Usage
+
+### Setting Up Blade
+
+Configure the views and cache paths:
+
+```php
+use Lyger\Livewire\Blade;
+
+// Set the views directory
+Blade::setViewsPath(__DIR__ . '/resources/views');
+
+// Set the cache directory
+Blade::setCachePath(__DIR__ . '/storage/cache/views');
+```
+
+### Rendering Views
+
+<Tabs>
+  <Tab title="Basic Rendering">
+    ```php
+    use Lyger\Livewire\Blade;
+
+    // Render a view with data
+    $html = Blade::render('welcome', [
+        'title' => 'Welcome to Lyger',
+        'user' => 'John Doe',
+    ]);
+
+    echo $html;
+    ```
+  </Tab>
+
+  <Tab title="Dot Notation">
+    ```php
+    // Use dot notation for nested directories
+    // Renders: resources/views/admin/dashboard.php
+    $html = Blade::render('admin.dashboard', [
+        'stats' => $statistics,
+    ]);
+    ```
+  </Tab>
+
+  <Tab title="View Facade">
+    ```php
+    use Lyger\Livewire\View;
+
+    // Alternative syntax using View facade
+    $html = View::make('profile.show', [
+        'user' => $currentUser,
+    ]);
+    ```
+  </Tab>
+</Tabs>
+
+## Template Files
+
+Create template files in your views directory:
+
+```php
+<!-- resources/views/welcome.php -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title><?= $title ?></title>
+</head>
+<body>
+    <h1>Hello, <?= $user ?>!</h1>
+    <p>Welcome to the application.</p>
+</body>
+</html>
+```
+
+### Variable Extraction
+
+All data passed to the view is automatically extracted as variables:
+
+```php
+Blade::render('profile', [
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'age' => 30,
+]);
+```
+
+```php
+<!-- resources/views/profile.php -->
+<div class="profile">
+    <h2><?= $name ?></h2>
+    <p>Email: <?= $email ?></p>
+    <p>Age: <?= $age ?></p>
+</div>
+```
+
+## Includes and Partials
+
+### Including Partials
+
+Use `Blade::include()` to include partial views:
+
+```php
+<!-- resources/views/dashboard.php -->
+<div class="dashboard">
+    <h1>Dashboard</h1>
+    
+    <?= Blade::include('partials.sidebar', ['items' => $menuItems]) ?>
+    
+    <div class="content">
+        <?= $mainContent ?>
+    </div>
+</div>
+```
+
+```php
+<!-- resources/views/partials/sidebar.php -->
+<aside class="sidebar">
+    <ul>
+        <?php foreach ($items as $item): ?>
+            <li><a href="<?= $item['url'] ?>"><?= $item['label'] ?></a></li>
+        <?php endforeach; ?>
+    </ul>
+</aside>
+```
+
+## Layouts and Sections
+
+### Defining Layouts
+
+Create a layout template with yield points:
+
+```php
+<!-- resources/views/layouts/app.php -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title><?= Blade::yield('title') ?> - My App</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+    <header>
+        <?= Blade::yield('header') ?>
+    </header>
+    
+    <main>
+        <?= Blade::yield('content') ?>
+    </main>
+    
+    <footer>
+        <?= Blade::yield('footer') ?>
+    </footer>
+</body>
+</html>
+```
+
+### Extending Layouts
+
+<Steps>
+  <Step title="Extend Layout">
+    Use `Blade::extends()` to specify the parent layout:
+
+    ```php
+    <!-- resources/views/pages/home.php -->
+    <?php Blade::extends('layouts.app'); ?>
+    ```
+  </Step>
+
+  <Step title="Define Sections">
+    Use `Blade::start()` and `Blade::end()` to define section content:
+
+    ```php
+    <?php Blade::start('title'); ?>
+    Home Page
+    <?php Blade::end(); ?>
+
+    <?php Blade::start('header'); ?>
+    <nav>
+        <a href="/">Home</a>
+        <a href="/about">About</a>
+    </nav>
+    <?php Blade::end(); ?>
+
+    <?php Blade::start('content'); ?>
+    <h1>Welcome to Our Site</h1>
+    <p>This is the home page content.</p>
+    <?php Blade::end(); ?>
+    ```
+  </Step>
+</Steps>
+
+### Complete Layout Example
+
+<CodeGroup>
+```php Layout File
+<!-- resources/views/layouts/master.php -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= Blade::yield('title') ?></title>
+    <?= Blade::yield('styles') ?>
+</head>
+<body>
+    <div class="container">
+        <?= Blade::yield('content') ?>
+    </div>
+    <?= Blade::yield('scripts') ?>
+</body>
+</html>
+```
+
+```php Page Using Layout
+<!-- resources/views/blog/post.php -->
+<?php Blade::extends('layouts.master'); ?>
+
+<?php Blade::start('title'); ?>
+<?= $post['title'] ?>
+<?php Blade::end(); ?>
+
+<?php Blade::start('styles'); ?>
+<link rel="stylesheet" href="/css/blog.css">
+<?php Blade::end(); ?>
+
+<?php Blade::start('content'); ?>
+<article>
+    <h1><?= $post['title'] ?></h1>
+    <div class="meta">
+        <span>By <?= $post['author'] ?></span>
+        <span><?= $post['date'] ?></span>
+    </div>
+    <div class="content">
+        <?= $post['body'] ?>
+    </div>
+</article>
+<?php Blade::end(); ?>
+
+<?php Blade::start('scripts'); ?>
+<script src="/js/blog.js"></script>
+<?php Blade::end(); ?>
+```
+</CodeGroup>
+
+## Components
+
+### Rendering Components
+
+Use `Blade::component()` to render Livewire or component class instances:
+
+```php
+<?php
+use Lyger\Livewire\Blade;
+
+// Render a component with props
+$html = Blade::component(App\Livewire\Counter::class, [
+    'initialCount' => 10,
+    'step' => 2,
+]);
+
+echo $html;
+?>
+```
+
+### Component in Views
+
+```php
+<!-- resources/views/dashboard.php -->
+<div class="dashboard">
+    <h1>Dashboard</h1>
+    
+    <?= Blade::component(App\Components\StatsCard::class, [
+        'title' => 'Total Users',
+        'value' => $userCount,
+        'icon' => 'users',
+    ]) ?>
+    
+    <?= Blade::component(App\Components\StatsCard::class, [
+        'title' => 'Revenue',
+        'value' => '$' . number_format($revenue, 2),
+        'icon' => 'dollar',
+    ]) ?>
+</div>
+```
+
+## Loop Helper
+
+The `Blade::each()` method simplifies rendering lists:
+
+```php
+use Lyger\Livewire\Blade;
+
+$users = [
+    ['name' => 'John', 'email' => 'john@example.com'],
+    ['name' => 'Jane', 'email' => 'jane@example.com'],
+    ['name' => 'Bob', 'email' => 'bob@example.com'],
+];
+
+$html = Blade::each($users, 'partials.user-item', 'user');
+echo $html;
+```
+
+```php
+<!-- resources/views/partials/user-item.php -->
+<div class="user-item">
+    <h3><?= $user['name'] ?></h3>
+    <p><?= $user['email'] ?></p>
+    <p>Item <?= $loop['iteration'] ?> of <?= $loop['count'] ?></p>
+    
+    <?php if ($loop['first']): ?>
+        <span class="badge">First</span>
+    <?php endif; ?>
+    
+    <?php if ($loop['last']): ?>
+        <span class="badge">Last</span>
+    <?php endif; ?>
+</div>
+```
+
+### Loop Variables
+
+The `$loop` variable provides useful iteration data:
+
+| Variable | Description |
+|----------|-------------|
+| `$loop['index']` | Zero-based index (0, 1, 2...) |
+| `$loop['iteration']` | Current iteration (1, 2, 3...) |
+| `$loop['first']` | True if first iteration |
+| `$loop['last']` | True if last iteration |
+| `$loop['count']` | Total number of items |
+
+## Blade Directives
+
+The `Lyger\Livewire\Directives` class provides common template directives:
+
+### Conditional Directives
+
+<Tabs>
+  <Tab title="@if">
+    ```php
+    use Lyger\Livewire\Directives;
+
+    $html = Directives::if('$isAdmin', '<button>Delete</button>');
+    // Output: <?php if($isAdmin): ?> <button>Delete</button> <?php endif; ?>
+    ```
+  </Tab>
+
+  <Tab title="@isset">
+    ```php
+    $html = Directives::isset('$user', '<p>Welcome, <?= $user->name ?></p>');
+    // Output: <?php if(isset($user)): ?> <p>Welcome...</p> <?php endif; ?>
+    ```
+  </Tab>
+
+  <Tab title="@empty">
+    ```php
+    $html = Directives::empty('$items', '<p>No items found</p>');
+    // Output: <?php if(empty($items)): ?> <p>No items found</p> <?php endif; ?>
+    ```
+  </Tab>
+</Tabs>
+
+### Loop Directives
+
+<CodeGroup>
+```php @foreach
+use Lyger\Livewire\Directives;
+
+$html = Directives::foreach(
+    '$users',
+    '$user',
+    '<li><?= $user->name ?></li>'
+);
+
+// Output:
+// <?php foreach($users as $user): ?>
+//     <li><?= $user->name ?></li>
+// <?php endforeach; ?>
+```
+
+```php @for
+$html = Directives::for(
+    '$i = 0',
+    '$i < 10',
+    '$i++',
+    '<p>Item <?= $i ?></p>'
+);
+
+// Output:
+// <?php for($i = 0; $i < 10; $i++): ?>
+//     <p>Item <?= $i ?></p>
+// <?php endfor; ?>
+```
+
+```php @while
+$html = Directives::while(
+    '$hasItems',
+    '<div><?= $item->name ?></div>'
+);
+
+// Output:
+// <?php while($hasItems): ?>
+//     <div><?= $item->name ?></div>
+// <?php endwhile; ?>
+```
+
+```php @forelse
+$html = Directives::forelse(
+    '$products',
+    '$product',
+    '<div><?= $product->name ?></div>',
+    '<p>No products available</p>'
+);
+
+// Output:
+// <?php if(!empty($products)): foreach($products as $product): ?>
+//     <div><?= $product->name ?></div>
+// <?php else: ?>
+//     <p>No products available</p>
+// <?php endif; ?>
+```
+</CodeGroup>
+
+### Authentication Directives
+
+```php
+use Lyger\Livewire\Directives;
+
+// @auth directive
+$html = Directives::auth(
+    '<a href="/dashboard">Dashboard</a>',
+    '<a href="/login">Login</a>'
+);
+
+// Output:
+// <?php if(auth()->check()): ?>
+//     <a href="/dashboard">Dashboard</a>
+// <?php else: ?>
+//     <a href="/login">Login</a>
+// <?php endif; ?>
+```
+
+```php
+// @can directive
+$html = Directives::can('edit-posts', '<button>Edit</button>');
+
+// Output:
+// <?php if(auth()->can('edit-posts')): ?>
+//     <button>Edit</button>
+// <?php endif; ?>
+```
+
+### Switch Directive
+
+```php
+use Lyger\Livewire\Directives;
+
+$html = Directives::switch('$status', [
+    'pending' => '<span class="badge-yellow">Pending</span>',
+    'approved' => '<span class="badge-green">Approved</span>',
+    'rejected' => '<span class="badge-red">Rejected</span>',
+], '<span class="badge-gray">Unknown</span>');
+
+// Output:
+// <?php switch($status): ?>
+//     <?php case 'pending': ?>
+//         <span class="badge-yellow">Pending</span>
+//         <?php break; ?>
+//     <?php case 'approved': ?>
+//         <span class="badge-green">Approved</span>
+//         <?php break; ?>
+//     <?php case 'rejected': ?>
+//         <span class="badge-red">Rejected</span>
+//         <?php break; ?>
+//     <?php default: ?>
+//         <span class="badge-gray">Unknown</span>
+// <?php endswitch; ?>
+```
+
+## Shared Data
+
+Share data across all views:
+
+```php
+use Lyger\Livewire\View;
+
+// Share data globally
+View::share('siteName', 'My Application');
+View::share('currentYear', date('Y'));
+
+// Access in any view
+$siteName = View::getShared('siteName');
+```
+
+```php
+<!-- Any view file -->
+<footer>
+    <p>&copy; <?= View::getShared('currentYear') ?> <?= View::getShared('siteName') ?></p>
+</footer>
+```
+
+## Error Handling
+
+Blade automatically handles template errors:
+
+```php
+use Lyger\Livewire\Blade;
+
+$html = Blade::render('non-existent-view', []);
+
+// Output: "View not found: non-existent-view"
+```
+
+```php
+// Catch rendering errors
+try {
+    $html = Blade::render('problematic-view', ['data' => $data]);
+} catch (\Throwable $e) {
+    // Output: "Error rendering view: [error message]"
+    error_log($e->getMessage());
+}
+```
+
+## Integration with Livewire
+
+Use Blade to render Livewire component views:
+
+```php
+namespace App\Livewire;
+
+use Lyger\Livewire\Component;
+use Lyger\Livewire\Blade;
+
+class UserProfile extends Component
+{
+    public string $name = '';
+    public string $email = '';
+
+    public function render(): string
+    {
+        return Blade::render('livewire.user-profile', [
+            'name' => $this->name,
+            'email' => $this->email,
+        ]);
+    }
+}
+```
+
+```php
+<!-- resources/views/livewire/user-profile.php -->
+<div class="user-profile">
+    <h2><?= $name ?></h2>
+    <p><?= $email ?></p>
+    
+    <button wire:click="updateProfile">Update</button>
+</div>
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Organize Views">
+    Use a consistent directory structure:
+    ```
+    resources/views/
+    ├── layouts/
+    │   ├── app.php
+    │   └── admin.php
+    ├── partials/
+    │   ├── header.php
+    │   └── footer.php
+    ├── components/
+    │   └── card.php
+    └── pages/
+        ├── home.php
+        └── about.php
+    ```
+  </Step>
+
+  <Step title="Escape Output">
+    Always escape user-generated content to prevent XSS:
+    ```php
+    <p><?= htmlspecialchars($userInput, ENT_QUOTES, 'UTF-8') ?></p>
+    ```
+  </Step>
+
+  <Step title="Keep Logic Minimal">
+    Avoid complex business logic in templates. Use controllers or components for data processing.
+  </Step>
+
+  <Step title="Reuse Partials">
+    Extract repeated markup into partials for better maintainability.
+  </Step>
+
+  <Step title="Use Dot Notation">
+    Organize views in subdirectories and use dot notation for cleaner code:
+    ```php
+    Blade::render('admin.users.index', $data);
+    // Instead of: Blade::render('admin/users/index', $data);
+    ```
+  </Step>
+</Steps>
+
+## Practical Examples
+
+### Complete Page Example
+
+<CodeGroup>
+```php Controller
+<?php
+
+namespace App\Controllers;
+
+use Lyger\Livewire\Blade;
+
+class BlogController
+{
+    public function show(int $id)
+    {
+        $post = Post::find($id);
+        $comments = Comment::where('post_id', $id)->get();
+        $related = Post::where('category', $post->category)
+            ->limit(3)
+            ->get();
+
+        return Blade::render('blog.show', [
+            'post' => $post,
+            'comments' => $comments,
+            'related' => $related,
+        ]);
+    }
+}
+```
+
+```php View Template
+<!-- resources/views/blog/show.php -->
+<?php Blade::extends('layouts.app'); ?>
+
+<?php Blade::start('title'); ?>
+<?= htmlspecialchars($post->title) ?>
+<?php Blade::end(); ?>
+
+<?php Blade::start('content'); ?>
+<article class="blog-post">
+    <h1><?= htmlspecialchars($post->title) ?></h1>
+    
+    <div class="meta">
+        <span>By <?= $post->author ?></span>
+        <span><?= date('F j, Y', strtotime($post->created_at)) ?></span>
+    </div>
+    
+    <div class="content">
+        <?= $post->content ?>
+    </div>
+    
+    <div class="comments">
+        <h3>Comments</h3>
+        <?= Blade::each($comments, 'partials.comment', 'comment') ?>
+    </div>
+    
+    <div class="related">
+        <h3>Related Posts</h3>
+        <?php foreach ($related as $relatedPost): ?>
+            <?= Blade::include('partials.post-card', ['post' => $relatedPost]) ?>
+        <?php endforeach; ?>
+    </div>
+</article>
+<?php Blade::end(); ?>
+```
+
+```php Comment Partial
+<!-- resources/views/partials/comment.php -->
+<div class="comment">
+    <div class="comment-header">
+        <strong><?= htmlspecialchars($comment['author']) ?></strong>
+        <span><?= $comment['created_at'] ?></span>
+    </div>
+    <div class="comment-body">
+        <?= htmlspecialchars($comment['body']) ?>
+    </div>
+</div>
+```
+</CodeGroup>
+
+## API Reference
+
+### Blade Class
+
+| Method | Description |
+|--------|-------------|
+| `setViewsPath($path)` | Sets the views directory path |
+| `setCachePath($path)` | Sets the cache directory path |
+| `render($view, $data)` | Renders a view with data |
+| `renderComponent($component)` | Renders a component |
+| `include($view, $data)` | Includes a partial view |
+| `yield($section)` | Outputs section content |
+| `start($section)` | Starts a section |
+| `end()` | Ends a section |
+| `extends($layout)` | Extends a layout |
+| `component($class, $props)` | Renders component class |
+| `each($items, $view, $key)` | Renders view for each item |
+
+### View Class
+
+| Method | Description |
+|--------|-------------|
+| `make($view, $data)` | Creates and renders a view |
+| `share($key, $value)` | Shares data across all views |
+| `getShared($key, $default)` | Gets shared data |
+
+### Directives Class
+
+| Method | Description |
+|--------|-------------|
+| `if($condition, $content)` | Conditional rendering |
+| `foreach($items, $item, $content)` | Loop through items |
+| `forelse($items, $item, $content, $empty)` | Loop with empty fallback |
+| `for($init, $condition, $increment, $content)` | For loop |
+| `while($condition, $content)` | While loop |
+| `switch($value, $cases, $default)` | Switch statement |
+| `isset($var, $content)` | Check if variable is set |
+| `empty($var, $content)` | Check if variable is empty |
+| `auth($content, $guest)` | Authentication check |
+| `can($permission, $content)` | Authorization check |

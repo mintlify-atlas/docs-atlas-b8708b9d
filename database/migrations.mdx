@@ -1,0 +1,555 @@
+---
+title: 'Migrations'
+description: 'Manage your database schema with version control'
+---
+
+## Introduction
+
+Migrations are version control for your database schema. They allow you to define and share your application's database schema definition, making it easy to modify and share the database structure across your team.
+
+## Creating Migrations
+
+### Using the Migrator
+
+Create a new migration file using the `Migrator` class:
+
+```php
+use Lyger\Database\Migrator;
+
+$migrator = new Migrator();
+$migrator->make('create_users_table');
+
+// Output: Created migration: 2026_03_08_143052_create_users_table.php
+```
+
+This creates a migration file in the `database/migrations/` directory with a timestamp prefix.
+
+### Migration File Structure
+
+A generated migration file looks like this:
+
+```php database/migrations/2026_03_08_143052_create_users_table.php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreateUsersTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('users', function ($table) {
+            $table->id();
+            // Add your columns here
+            // $table->string('name');
+            // $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('users');
+    }
+}
+```
+
+## Migration Structure
+
+Every migration has two methods:
+
+<ParamField path="up()" type="void">
+  Runs when the migration is executed. Define table creation and modifications here.
+</ParamField>
+
+<ParamField path="down()" type="void">
+  Runs when the migration is rolled back. Reverse the changes made in `up()`.
+</ParamField>
+
+## Creating Tables
+
+### Basic Table Creation
+
+```php
+public function up(): void
+{
+    $this->getSchema()->create('posts', function ($table) {
+        $table->id();
+        $table->string('title');
+        $table->text('content');
+        $table->string('status');
+        $table->timestamps();
+    });
+}
+```
+
+### Complete Example
+
+```php
+public function up(): void
+{
+    $this->getSchema()->create('users', function ($table) {
+        // Primary key
+        $table->id();
+        
+        // String columns
+        $table->string('name', 255);
+        $table->string('email', 255)->unique();
+        $table->string('password');
+        
+        // Text columns
+        $table->text('bio')->nullable();
+        
+        // Integer columns
+        $table->integer('age')->unsigned();
+        $table->bigInteger('views')->default(0);
+        
+        // Boolean columns
+        $table->boolean('active')->default(1);
+        $table->boolean('email_verified')->default(0);
+        
+        // Date/Time columns
+        $table->datetime('last_login')->nullable();
+        $table->timestamp('email_verified_at')->nullable();
+        
+        // Timestamps (created_at, updated_at)
+        $table->timestamps();
+        
+        // Soft deletes
+        $table->softDeletes();
+        
+        // JSON columns
+        $table->json('metadata')->nullable();
+    });
+}
+```
+
+## Available Column Types
+
+### Numeric Types
+
+<Tabs>
+  <Tab title="Integers">
+    ```php
+    $table->id(); // Auto-increment INTEGER PRIMARY KEY
+    $table->bigId(); // Alias for id()
+    
+    $table->integer('votes');
+    $table->bigInteger('impressions');
+    
+    $table->integer('count')->unsigned(); // Unsigned integer
+    ```
+  </Tab>
+
+  <Tab title="Decimals">
+    ```php
+    $table->decimal('price', 8, 2); // Precision 8, Scale 2
+    $table->float('rating');
+    ```
+  </Tab>
+
+  <Tab title="Boolean">
+    ```php
+    $table->boolean('is_active');
+    $table->boolean('published')->default(0);
+    ```
+  </Tab>
+</Tabs>
+
+### String Types
+
+```php
+$table->string('name'); // VARCHAR(255)
+$table->string('code', 10); // VARCHAR(10)
+$table->text('description'); // TEXT
+```
+
+### Date and Time Types
+
+```php
+$table->date('birth_date');
+$table->datetime('published_at');
+$table->timestamp('verified_at');
+
+// Convenience methods
+$table->timestamps(); // created_at, updated_at
+$table->softDeletes(); // deleted_at
+```
+
+### Special Types
+
+```php
+$table->json('options'); // JSON data
+$table->uuid(); // UUID string (36 chars)
+$table->uuid('identifier'); // Custom UUID column
+```
+
+## Column Modifiers
+
+Chain modifiers to customize column behavior:
+
+```php
+$table->string('email')->nullable(); // Allow NULL
+$table->string('name')->default('Guest'); // Default value
+$table->integer('price')->unsigned(); // Unsigned integer
+$table->string('code')->unique(); // Add unique constraint
+$table->string('title')->primary(); // Set as primary key
+```
+
+### Nullable Columns
+
+```php
+$table->string('middle_name')->nullable();
+$table->text('bio')->nullable();
+$table->datetime('deleted_at')->nullable();
+```
+
+### Default Values
+
+```php
+$table->string('status')->default('pending');
+$table->boolean('active')->default(1);
+$table->integer('views')->default(0);
+```
+
+### Unsigned Integers
+
+```php
+$table->integer('count')->unsigned();
+$table->bigInteger('total')->unsigned();
+```
+
+### Indexes
+
+```php
+// Unique constraint
+$table->string('email')->unique();
+
+// Regular index
+$table->string('status')->index();
+
+// Composite index
+$table->index(['user_id', 'post_id']);
+```
+
+## Modifying Tables
+
+### Adding Columns
+
+```php
+public function up(): void
+{
+    $this->getSchema()->table('users', function ($table) {
+        $table->string('phone')->nullable();
+        $table->text('address')->nullable();
+    });
+}
+```
+
+## Dropping Tables
+
+### Drop Table
+
+```php
+public function down(): void
+{
+    $this->getSchema()->drop('users');
+}
+```
+
+### Drop If Exists
+
+```php
+public function up(): void
+{
+    $this->getSchema()->dropIfExists('old_table');
+}
+```
+
+## Running Migrations
+
+### Run All Pending Migrations
+
+```php
+use Lyger\Database\Migrator;
+
+$migrator = new Migrator();
+$migrator->run();
+
+// Output:
+// Running migration: 2026_03_08_143052_create_users_table
+// Migrated: 2026_03_08_143052_create_users_table
+```
+
+### Custom Migration Path
+
+```php
+$migrator = new Migrator();
+$migrator->path('/custom/path/to/migrations');
+$migrator->run();
+```
+
+## Rolling Back Migrations
+
+### Rollback Last Batch
+
+```php
+$migrator = new Migrator();
+$migrator->rollback();
+
+// Output:
+// Rolling back migration: 2026_03_08_143052_create_users_table
+// Rolled back: 2026_03_08_143052_create_users_table
+```
+
+### Reset All Migrations
+
+```php
+$migrator = new Migrator();
+$migrator->reset();
+// Rolls back all migrations
+```
+
+## Migration Status
+
+Check which migrations have been run:
+
+```php
+$migrator = new Migrator();
+$migrator->status();
+
+// Output:
+// | Migration |
+// |-----------|
+// | 2026_03_08_143052_create_users_table | Ran |
+// | 2026_03_08_143053_create_posts_table | Pending |
+```
+
+## Complete Migration Examples
+
+### Users Table
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreateUsersTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('users', function ($table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->boolean('email_verified')->default(0);
+            $table->timestamp('email_verified_at')->nullable();
+            $table->datetime('last_login')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('users');
+    }
+}
+```
+
+### Posts Table with Foreign Key
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreatePostsTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('posts', function ($table) {
+            $table->id();
+            $table->string('title');
+            $table->string('slug')->unique();
+            $table->text('content');
+            $table->string('status')->default('draft');
+            $table->integer('user_id')->unsigned();
+            $table->integer('views')->unsigned()->default(0);
+            $table->boolean('published')->default(0);
+            $table->datetime('published_at')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+            
+            // Add index for better query performance
+            $table->index(['user_id', 'status']);
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('posts');
+    }
+}
+```
+
+### Pivot Table for Many-to-Many
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreatePostTagTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('post_tag', function ($table) {
+            $table->id();
+            $table->integer('post_id')->unsigned();
+            $table->integer('tag_id')->unsigned();
+            $table->timestamps();
+            
+            // Composite unique constraint
+            $table->index(['post_id', 'tag_id']);
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('post_tag');
+    }
+}
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Always Include Timestamps">
+    Use `$table->timestamps()` to track creation and modification times:
+
+    ```php
+    $table->timestamps();
+    ```
+  </Step>
+
+  <Step title="Use Descriptive Names">
+    Name your migrations clearly:
+    - `create_users_table`
+    - `add_status_to_posts_table`
+    - `create_post_tag_pivot_table`
+  </Step>
+
+  <Step title="Make Migrations Reversible">
+    Always implement the `down()` method to reverse changes:
+
+    ```php
+    public function down(): void
+    {
+        $this->getSchema()->drop('users');
+    }
+    ```
+  </Step>
+
+  <Step title="Use Soft Deletes">
+    For data that might need recovery, use soft deletes:
+
+    ```php
+    $table->softDeletes();
+    ```
+  </Step>
+
+  <Step title="Add Indexes for Performance">
+    Index columns used in WHERE clauses and JOINs:
+
+    ```php
+    $table->string('email')->unique();
+    $table->index(['user_id', 'created_at']);
+    ```
+  </Step>
+</Steps>
+
+## Migration Workflow
+
+<Steps>
+  <Step title="Create Migration">
+    ```php
+    $migrator = new Migrator();
+    $migrator->make('create_users_table');
+    ```
+  </Step>
+
+  <Step title="Define Schema">
+    Edit the generated file to define your table structure
+  </Step>
+
+  <Step title="Run Migration">
+    ```php
+    $migrator->run();
+    ```
+  </Step>
+
+  <Step title="Test Your Changes">
+    Verify the table was created correctly
+  </Step>
+
+  <Step title="Commit to Version Control">
+    Commit the migration file to your repository
+  </Step>
+</Steps>
+
+## Database Drivers
+
+Lyger migrations work with multiple database drivers:
+
+<Tabs>
+  <Tab title="SQLite">
+    Default driver, no additional configuration needed:
+    
+    ```bash .env
+    DB_CONNECTION=sqlite
+    DB_DATABASE=database/database.sqlite
+    ```
+  </Tab>
+
+  <Tab title="PostgreSQL">
+    ```bash .env
+    DB_CONNECTION=postgres
+    DB_HOST=127.0.0.1
+    DB_PORT=5432
+    DB_DATABASE=lyger
+    ```
+  </Tab>
+
+  <Tab title="MySQL">
+    ```bash .env
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=lyger
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  The Schema builder automatically adapts to your configured database driver, handling differences in SQL syntax and data types.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Eloquent Models" icon="database" href="/database/eloquent-models">
+    Learn how to interact with your migrated tables
+  </Card>
+  <Card title="Relationships" icon="link" href="/database/relationships">
+    Define relationships between tables
+  </Card>
+</CardGroup>

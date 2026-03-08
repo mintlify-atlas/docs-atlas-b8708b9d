@@ -1,0 +1,301 @@
+---
+title: serve
+description: Start the Lyger development server
+icon: server
+---
+
+The `serve` command starts a local development server for your Lyger application.
+
+## Syntax
+
+```bash
+php rawr serve [--port=PORT]
+```
+
+<ParamField path="--port" type="integer" default="8000">
+  Specify a custom port number for the server
+</ParamField>
+
+## Basic Usage
+
+Start the server on the default port (8000):
+
+```bash
+php rawr serve
+```
+
+**Output:**
+
+```
+[Lyger] PHP Server running on http://localhost:8000
+   Press Ctrl+C to stop
+```
+
+## Custom Port
+
+Start the server on a custom port:
+
+```bash
+php rawr serve --port=8080
+```
+
+<Info>
+The server will be accessible at `http://localhost:8080`
+</Info>
+
+## Server Modes
+
+Lyger supports two server modes:
+
+### 1. PHP Built-in Server (Default)
+
+The default mode uses PHP's built-in development server:
+
+```bash
+php rawr serve
+# or explicitly
+php rawr serve:php
+```
+
+<Note>
+This mode is perfect for local development and testing. It automatically serves files from the `public/` directory.
+</Note>
+
+### 2. Always-Alive Mode (Rust + FFI)
+
+For production-like performance during development, Lyger can use the Rust HTTP server via FFI:
+
+<CodeGroup>
+
+```bash Automatic Detection
+php rawr serve
+```
+
+```php Server Detection (Internal)
+// Lyger automatically detects if Rust library is available
+$libPath = findLibrary($basePath);
+if ($libPath && extension_loaded('ffi')) {
+    // Uses Rust server
+} else {
+    // Falls back to PHP built-in server
+}
+```
+
+</CodeGroup>
+
+<Info>
+Always-Alive mode requires:
+- FFI extension enabled in `php.ini`
+- Rust library compiled (`liblyger.so`, `liblyger.dylib`, or `liblyger.dll`)
+</Info>
+
+## Server Configuration
+
+### PHP Configuration
+
+Create a `php.ini` file in your project root for custom PHP settings:
+
+```ini php.ini
+[PHP]
+ffi.enable = 1
+memory_limit = 256M
+max_execution_time = 60
+```
+
+The server automatically loads this configuration:
+
+```php rawr (lines 138-150)
+function serveLegacy(string $basePath, string $phpIni, string $port = '8000'): void
+{
+    $publicPath = $basePath . '/public';
+    
+    // Build absolute path for php.ini before changing directory
+    $phpIniAbs = realpath($phpIni) ?: $phpIni;
+    $iniFlag = file_exists($phpIni) ? "-c \"{$phpIniAbs}\"" : '';
+    
+    echo "\n[Lyger] PHP Server running on http://localhost:{$port}\n";
+    echo "   Press Ctrl+C to stop\n\n";
+    
+    // Execute PHP server with absolute paths
+    $cmd = "php {$iniFlag} -S localhost:{$port} -t \"{$publicPath}\"";
+    passthru($cmd);
+}
+```
+
+### Document Root
+
+The server serves files from the `public/` directory:
+
+```
+your-project/
+├── public/              # Web root (served by server)
+│   ├── index.php       # Entry point
+│   ├── assets/
+│   └── uploads/
+├── App/
+├── Lyger/
+└── rawr
+```
+
+## Health Check Endpoints
+
+When using Always-Alive mode, Lyger provides built-in health check endpoints:
+
+### /api/health
+
+Check server status and memory usage:
+
+```bash
+curl http://localhost:8000/api/health
+```
+
+**Response:**
+
+```json
+{
+  "status": "ok",
+  "memory": "12.5 MB"
+}
+```
+
+### /api/info
+
+Get server information:
+
+```bash
+curl http://localhost:8000/api/info
+```
+
+**Response:**
+
+```json
+{
+  "framework": "Lyger v0.1",
+  "mode": "always-alive",
+  "php_version": "8.2.0"
+}
+```
+
+## Stopping the Server
+
+Press `Ctrl+C` in the terminal to stop the server:
+
+```
+^C
+[Lyger] Server stopped
+```
+
+## Common Use Cases
+
+### Development with Hot Reload
+
+For frontend development with live reloading:
+
+```bash
+# Terminal 1: Start Lyger backend
+php rawr serve --port=8000
+
+# Terminal 2: Start frontend dev server
+npm run dev
+```
+
+### Multiple Projects
+
+Run multiple Lyger projects simultaneously using different ports:
+
+```bash
+# Project 1
+cd project1
+php rawr serve --port=8000
+
+# Project 2
+cd project2
+php rawr serve --port=8001
+```
+
+### Testing API Endpoints
+
+Start the server and test your API:
+
+<CodeGroup>
+
+```bash Start Server
+php rawr serve
+```
+
+```bash Test Endpoint
+curl http://localhost:8000/api/users
+```
+
+```javascript Fetch from Frontend
+fetch('http://localhost:8000/api/users')
+  .then(res => res.json())
+  .then(data => console.log(data));
+```
+
+</CodeGroup>
+
+## Troubleshooting
+
+### Port Already in Use
+
+If port 8000 is already in use:
+
+```bash
+php rawr serve --port=8001
+```
+
+Or find and kill the process using the port:
+
+```bash
+# Find process
+lsof -i :8000
+
+# Kill process
+kill -9 <PID>
+```
+
+### Permission Denied
+
+Ensure the `public/` directory has proper permissions:
+
+```bash
+chmod -R 755 public/
+```
+
+### FFI Not Available
+
+If you see FFI-related warnings, enable it in `php.ini`:
+
+```ini
+[PHP]
+ffi.enable = 1
+```
+
+Then restart the server.
+
+## Performance Notes
+
+<Note>
+The PHP built-in server is single-threaded and intended for development only. For production, use:
+- **Nginx + PHP-FPM**
+- **Apache + mod_php**
+- **Caddy with PHP FastCGI**
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Make Controller" icon="file-code" href="/cli/make-controller">
+    Create controllers to handle requests
+  </Card>
+  <Card title="Routing" icon="route" href="/routing/basic-routing">
+    Define routes for your application
+  </Card>
+  <Card title="Configuration" icon="gear" href="/installation">
+    Configure your application settings
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/core/always-alive-server">
+    Deploy to production
+  </Card>
+</CardGroup>

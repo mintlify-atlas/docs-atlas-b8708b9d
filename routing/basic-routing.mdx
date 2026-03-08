@@ -1,0 +1,228 @@
+---
+title: 'Basic Routing'
+description: 'Learn how to define routes in Lyger Framework'
+---
+
+## Introduction
+
+Lyger's routing system provides a clean and expressive way to define your application's routes. All routes are defined in the `routes/web.php` file and support common HTTP methods through the `Route` facade.
+
+## Available HTTP Methods
+
+The router supports all standard HTTP methods:
+
+<CodeGroup>
+
+```php GET Requests
+use Lyger\Routing\Route;
+use Lyger\Http\Response;
+
+Route::get('/users', function ($request) {
+    return Response::json(['users' => []]);
+});
+```
+
+```php POST Requests
+Route::post('/users', function ($request) {
+    $data = $request->all();
+    return Response::json(['created' => true]);
+});
+```
+
+```php PUT Requests
+Route::put('/users/{id}', function ($request, $id) {
+    return Response::json(['updated' => $id]);
+});
+```
+
+```php DELETE Requests
+Route::delete('/users/{id}', function ($request, $id) {
+    return Response::json(['deleted' => $id]);
+});
+```
+
+</CodeGroup>
+
+## Route Handlers
+
+Routes can use either closures or controller methods as handlers.
+
+### Closure Handlers
+
+The simplest way to define a route is with a closure function:
+
+```php
+use Lyger\Routing\Route;
+use Lyger\Http\Response;
+
+Route::get('/', function () {
+    return Response::json([
+        'name' => 'Lyger Framework v0.1',
+        'status' => 'running',
+        'message' => 'Welcome to Lyger - PHP on steroids with Rust FFI'
+    ]);
+});
+```
+
+<Note>
+All route handlers receive the `Request` object as the first parameter automatically.
+</Note>
+
+### Controller Handlers
+
+For better organization, you can reference controller methods using an array syntax:
+
+```php
+use Lyger\Routing\Route;
+use App\Controllers\EngineController;
+
+Route::get('/api/hello', [EngineController::class, 'hello']);
+Route::get('/api/benchmark', [EngineController::class, 'benchmark']);
+Route::get('/api/system', [EngineController::class, 'systemInfo']);
+```
+
+The controller method will automatically receive the `Request` object:
+
+```php
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class EngineController
+{
+    public function hello(Request $request): Response
+    {
+        return Response::json(['message' => 'Hello from Lyger!']);
+    }
+}
+```
+
+## Response Types
+
+Lyger provides convenient methods for returning different response types:
+
+<Tabs>
+  <Tab title="JSON Response">
+    ```php
+    Route::get('/api/data', function () {
+        return Response::json([
+            'success' => true,
+            'data' => ['key' => 'value']
+        ]);
+    });
+    ```
+  </Tab>
+  <Tab title="HTML Response">
+    ```php
+    Route::get('/page', function () {
+        $html = '<h1>Welcome to Lyger</h1>';
+        return Response::html($html);
+    });
+    ```
+  </Tab>
+  <Tab title="Text Response">
+    ```php
+    Route::get('/robots.txt', function () {
+        return Response::text('User-agent: *\nDisallow:');
+    });
+    ```
+  </Tab>
+  <Tab title="Error Response">
+    ```php
+    Route::get('/error', function () {
+        return Response::error('Something went wrong', 500);
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Auto-Response Formatting
+
+If you return a non-Response value, the router will automatically format it:
+
+```php
+// Returns as JSON
+Route::get('/array', function () {
+    return ['data' => 'value']; // Automatically becomes Response::json()
+});
+
+// Returns as HTML
+Route::get('/string', function () {
+    return '<h1>Hello</h1>'; // Automatically becomes Response::html()
+});
+```
+
+## Status Codes and Headers
+
+You can customize response status codes and headers:
+
+```php
+Route::get('/created', function () {
+    return Response::json(['id' => 123], 201); // 201 Created
+});
+
+Route::get('/custom', function () {
+    $response = Response::json(['data' => 'value']);
+    $response->setHeader('X-Custom-Header', 'MyValue');
+    return $response;
+});
+```
+
+## Loading Routes
+
+Routes are automatically loaded from the `routes/web.php` file when the application bootstraps:
+
+```php
+// In your bootstrap file
+$router->loadRoutesFromFile(__DIR__ . '/routes/web.php');
+```
+
+<Warning>
+If no route matches the incoming request, the router will automatically return a 404 Not Found response.
+</Warning>
+
+## Working with the Request Object
+
+Every route handler receives the `Request` object as the first parameter:
+
+```php
+Route::post('/data', function ($request) {
+    // Get query parameters
+    $name = $request->get('name', 'Guest');
+    
+    // Get POST data
+    $email = $request->post('email');
+    
+    // Get input (checks JSON, POST, then GET)
+    $value = $request->input('key', 'default');
+    
+    // Get all input data
+    $all = $request->all();
+    
+    // Get request method
+    $method = $request->method(); // 'POST'
+    
+    // Get URI
+    $uri = $request->uri(); // '/data'
+    
+    // Get headers
+    $auth = $request->header('Authorization');
+    
+    // Get client IP
+    $ip = $request->ip();
+    
+    return Response::json(['received' => $all]);
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Route Parameters" icon="brackets-curly" href="/routing/route-parameters">
+    Learn how to capture dynamic segments in your URLs
+  </Card>
+  <Card title="Middleware" icon="filter" href="/routing/middleware">
+    Add middleware to filter and process requests
+  </Card>
+</CardGroup>

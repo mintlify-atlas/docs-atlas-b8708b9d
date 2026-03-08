@@ -1,0 +1,89 @@
+---
+title: Introduction
+description: Welcome to Lyger - A high-performance PHP framework with Rust FFI integration
+---
+
+# Welcome to Lyger
+
+Lyger is a high-performance PHP framework that integrates Rust through FFI (Foreign Function Interface) to deliver blazing-fast execution and zero-copy database operations. Built for developers who need the productivity of PHP with the performance of Rust.
+
+## Why Lyger?
+
+<CardGroup cols={2}>
+  <Card title="Rust-Powered Performance" icon="bolt">
+    Leverage Rust's speed for compute-intensive operations through FFI integration
+  </Card>
+  <Card title="Always-Alive Architecture" icon="server">
+    PHP workers stay in memory while Rust handles HTTP for minimal overhead
+  </Card>
+  <Card title="Zero-Copy Database" icon="database">
+    Direct memory access to database results without PHP serialization overhead
+  </Card>
+  <Card title="Familiar Syntax" icon="code">
+    Laravel-inspired API with Eloquent ORM and intuitive routing
+  </Card>
+</CardGroup>
+
+## Key Features
+
+- **Rust FFI Integration** - High-performance operations with automatic fallback to pure PHP
+- **Always-Alive Server** - Persistent PHP worker with Rust HTTP handler
+- **Zero-Copy Database** - Direct memory access for database queries
+- **Eloquent ORM** - Laravel-inspired models with relationships
+- **Livewire Components** - Reactive frontend components without JavaScript
+- **Admin Dashboard** - Built-in dashboard generator with customizable UI
+- **CLI Scaffolding** - Rapid development with `php rawr` commands
+- **Multi-Database Support** - SQLite, PostgreSQL, MySQL, and MariaDB
+
+## Performance Benefits
+
+Lyger combines the best of both worlds:
+
+- **PHP productivity** for business logic, routing, and ORM
+- **Rust performance** for HTTP handling, caching, and heavy computation
+- **Zero-copy data transfer** between Rust and PHP for database queries
+
+## Quick Example
+
+```php
+<?php
+
+use Lyger\Routing\Route;
+use Lyger\Http\Response;
+
+Route::get('/api/users', function () {
+    $users = User::where('active', true)
+        ->orderBy('created_at', 'desc')
+        ->limit(10)
+        ->get();
+    
+    return Response::json($users);
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Get Lyger installed and configured
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first application
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/core/architecture">
+    Understand the architecture
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview">
+    Explore scaffold commands
+  </Card>
+</CardGroup>
+
+## Requirements
+
+- PHP 8.0 or higher
+- FFI extension enabled (optional, framework falls back to pure PHP)
+- Composer for dependency management
+
+## Community
+
+Lyger is open source and available on [GitHub](https://github.com/betoalien/Lyger-PHP-Framework). Contributions and feedback are welcome!

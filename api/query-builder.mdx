@@ -1,0 +1,732 @@
+---
+title: 'Query Builder'
+description: 'Fluent SQL query builder for Lyger framework'
+---
+
+## Overview
+
+The `QueryBuilder` class provides a fluent, convenient interface for building and executing database queries. It supports SELECT, INSERT, UPDATE, and DELETE operations with method chaining for a clean, readable syntax.
+
+## Class Reference
+
+### Lyger\Database\QueryBuilder
+
+Fluent SQL query builder inspired by Laravel's query builder.
+
+**Location:** `Lyger/Database/QueryBuilder.php`
+
+## Creating Query Builders
+
+### Constructor
+
+```php
+public function __construct(string $table)
+```
+
+Create a new query builder instance for a specific table.
+
+<ParamField path="table" type="string" required>
+The name of the database table
+</ParamField>
+
+**Example:**
+```php
+$query = new QueryBuilder('users');
+```
+
+### table()
+
+```php
+public static function table(string $table): self
+```
+
+Static method to create a query builder instance.
+
+<ParamField path="table" type="string" required>
+The name of the database table
+</ParamField>
+
+**Returns:** `QueryBuilder` instance
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')->get();
+```
+
+## Select Methods
+
+### select()
+
+```php
+public function select(array $columns): self
+```
+
+Set the columns to be selected.
+
+<ParamField path="columns" type="array" required>
+Array of column names to select
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->select(['id', 'name', 'email'])
+    ->get();
+```
+
+### get()
+
+```php
+public function get(): array
+```
+
+Execute the query and get all results.
+
+**Returns:** Array of associative arrays
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->where('active', '=', 1)
+    ->get();
+
+foreach ($users as $user) {
+    echo $user['name'];
+}
+```
+
+### first()
+
+```php
+public function first(): ?array
+```
+
+Execute the query and get the first result.
+
+**Returns:** Associative array or `null` if no results
+
+**Example:**
+```php
+$user = QueryBuilder::table('users')
+    ->where('email', '=', 'john@example.com')
+    ->first();
+
+if ($user) {
+    echo $user['name'];
+}
+```
+
+### value()
+
+```php
+public function value(string $column): mixed
+```
+
+Execute the query and get a single column value from the first result.
+
+<ParamField path="column" type="string" required>
+The column name to retrieve
+</ParamField>
+
+**Returns:** Column value or `null`
+
+**Example:**
+```php
+$name = QueryBuilder::table('users')
+    ->where('id', '=', 1)
+    ->value('name');
+```
+
+## Where Clauses
+
+### where()
+
+```php
+public function where(string $column, $operator, $value = null): self
+```
+
+Add a WHERE clause to the query. If only two parameters provided, assumes `=` operator.
+
+<ParamField path="column" type="string" required>
+The column name
+</ParamField>
+
+<ParamField path="operator" type="string">
+Comparison operator (`=`, `!=`, `>`, `<`, `>=`, `<=`, `LIKE`, etc.)
+</ParamField>
+
+<ParamField path="value" type="mixed">
+The value to compare against
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+// With explicit operator
+$users = QueryBuilder::table('users')
+    ->where('age', '>', 18)
+    ->get();
+
+// Shorthand for equals
+$user = QueryBuilder::table('users')
+    ->where('email', 'john@example.com')
+    ->first();
+
+// Using LIKE
+$users = QueryBuilder::table('users')
+    ->where('name', 'LIKE', 'John%')
+    ->get();
+```
+
+### orWhere()
+
+```php
+public function orWhere(string $column, $operator, $value = null): self
+```
+
+Add an OR WHERE clause to the query.
+
+<ParamField path="column" type="string" required>
+The column name
+</ParamField>
+
+<ParamField path="operator" type="string">
+Comparison operator
+</ParamField>
+
+<ParamField path="value" type="mixed">
+The value to compare against
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->where('role', '=', 'admin')
+    ->orWhere('role', '=', 'moderator')
+    ->get();
+```
+
+### whereIn()
+
+```php
+public function whereIn(string $column, array $values): self
+```
+
+Add a WHERE IN clause to the query.
+
+<ParamField path="column" type="string" required>
+The column name
+</ParamField>
+
+<ParamField path="values" type="array" required>
+Array of values
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->whereIn('id', [1, 2, 3, 4, 5])
+    ->get();
+```
+
+### whereNull()
+
+```php
+public function whereNull(string $column): self
+```
+
+Add a WHERE IS NULL clause to the query.
+
+<ParamField path="column" type="string" required>
+The column name
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->whereNull('deleted_at')
+    ->get();
+```
+
+### whereNotNull()
+
+```php
+public function whereNotNull(string $column): self
+```
+
+Add a WHERE IS NOT NULL clause to the query.
+
+<ParamField path="column" type="string" required>
+The column name
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->whereNotNull('email_verified_at')
+    ->get();
+```
+
+## Ordering and Limiting
+
+### orderBy()
+
+```php
+public function orderBy(string $column, string $direction = 'ASC'): self
+```
+
+Add an ORDER BY clause to the query.
+
+<ParamField path="column" type="string" required>
+The column to order by
+</ParamField>
+
+<ParamField path="direction" type="string" default="'ASC'">
+Sort direction: 'ASC' or 'DESC'
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->orderBy('name', 'ASC')
+    ->get();
+```
+
+### latest()
+
+```php
+public function latest(string $column = 'created_at'): self
+```
+
+Order results by a column in descending order.
+
+<ParamField path="column" type="string" default="'created_at'">
+The column to order by
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$recentUsers = QueryBuilder::table('users')
+    ->latest()
+    ->get();
+```
+
+### oldest()
+
+```php
+public function oldest(string $column = 'created_at'): self
+```
+
+Order results by a column in ascending order.
+
+<ParamField path="column" type="string" default="'created_at'">
+The column to order by
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$oldestUsers = QueryBuilder::table('users')
+    ->oldest()
+    ->get();
+```
+
+### limit()
+
+```php
+public function limit(int $limit): self
+```
+
+Limit the number of results returned.
+
+<ParamField path="limit" type="int" required>
+Maximum number of results
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$topUsers = QueryBuilder::table('users')
+    ->orderBy('score', 'DESC')
+    ->limit(10)
+    ->get();
+```
+
+### offset()
+
+```php
+public function offset(int $offset): self
+```
+
+Skip a specified number of results.
+
+<ParamField path="offset" type="int" required>
+Number of results to skip
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->limit(10)
+    ->offset(20)
+    ->get();
+```
+
+## Pagination
+
+### paginate()
+
+```php
+public function paginate(int $perPage = 15, int $page = 1): array
+```
+
+Paginate query results.
+
+<ParamField path="perPage" type="int" default="15">
+Number of items per page
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+Current page number
+</ParamField>
+
+**Returns:** Pagination array with data and metadata
+
+**Example:**
+```php
+$result = QueryBuilder::table('users')
+    ->paginate(15, 2);
+
+// Result structure:
+// [
+//     'data' => [...],           // Array of results
+//     'current_page' => 2,
+//     'per_page' => 15,
+//     'total' => 100,            // Total number of records
+//     'last_page' => 7,          // Total number of pages
+//     'from' => 16,              // First item number
+//     'to' => 30                 // Last item number
+// ]
+
+foreach ($result['data'] as $user) {
+    echo $user['name'];
+}
+```
+
+<Expandable title="Pagination Response Fields">
+<ResponseField name="data" type="array">
+The paginated results for the current page
+</ResponseField>
+
+<ResponseField name="current_page" type="int">
+The current page number
+</ResponseField>
+
+<ResponseField name="per_page" type="int">
+Number of items per page
+</ResponseField>
+
+<ResponseField name="total" type="int">
+Total number of records in the dataset
+</ResponseField>
+
+<ResponseField name="last_page" type="int">
+The last page number (total pages)
+</ResponseField>
+
+<ResponseField name="from" type="int">
+The starting record number for the current page
+</ResponseField>
+
+<ResponseField name="to" type="int">
+The ending record number for the current page
+</ResponseField>
+</Expandable>
+
+## Joins
+
+### join()
+
+```php
+public function join(string $table, string $first, string $operator, string $second): self
+```
+
+Add an INNER JOIN clause to the query.
+
+<ParamField path="table" type="string" required>
+The table to join
+</ParamField>
+
+<ParamField path="first" type="string" required>
+First column in the join condition
+</ParamField>
+
+<ParamField path="operator" type="string" required>
+Comparison operator (usually '=')
+</ParamField>
+
+<ParamField path="second" type="string" required>
+Second column in the join condition
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->join('profiles', 'users.id', '=', 'profiles.user_id')
+    ->select(['users.*', 'profiles.bio'])
+    ->get();
+```
+
+### leftJoin()
+
+```php
+public function leftJoin(string $table, string $first, string $operator, string $second): self
+```
+
+Add a LEFT JOIN clause to the query.
+
+<ParamField path="table" type="string" required>
+The table to join
+</ParamField>
+
+<ParamField path="first" type="string" required>
+First column in the join condition
+</ParamField>
+
+<ParamField path="operator" type="string" required>
+Comparison operator (usually '=')
+</ParamField>
+
+<ParamField path="second" type="string" required>
+Second column in the join condition
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$users = QueryBuilder::table('users')
+    ->leftJoin('orders', 'users.id', '=', 'orders.user_id')
+    ->get();
+```
+
+## Aggregates
+
+### count()
+
+```php
+public function count(): int
+```
+
+Get the count of results matching the query.
+
+**Returns:** Integer count
+
+**Example:**
+```php
+$activeUsers = QueryBuilder::table('users')
+    ->where('active', '=', 1)
+    ->count();
+
+echo "Active users: {$activeUsers}";
+```
+
+### exists()
+
+```php
+public function exists(): bool
+```
+
+Check if any records exist matching the query.
+
+**Returns:** `true` if records exist, `false` otherwise
+
+**Example:**
+```php
+$hasAdmin = QueryBuilder::table('users')
+    ->where('role', '=', 'admin')
+    ->exists();
+
+if ($hasAdmin) {
+    echo "Admin users exist";
+}
+```
+
+## Insert, Update, Delete
+
+### insert()
+
+```php
+public function insert(array $data): bool
+```
+
+Insert a new record into the database.
+
+<ParamField path="data" type="array" required>
+Associative array of column => value pairs
+</ParamField>
+
+**Returns:** `true` on success, `false` on failure
+
+**Example:**
+```php
+$success = QueryBuilder::table('users')->insert([
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'created_at' => date('Y-m-d H:i:s')
+]);
+```
+
+### update()
+
+```php
+public function update(array $data): int
+```
+
+Update records matching the query.
+
+<ParamField path="data" type="array" required>
+Associative array of column => value pairs to update
+</ParamField>
+
+**Returns:** Number of affected rows
+
+**Example:**
+```php
+$affected = QueryBuilder::table('users')
+    ->where('id', '=', 1)
+    ->update([
+        'name' => 'Jane Doe',
+        'updated_at' => date('Y-m-d H:i:s')
+    ]);
+
+echo "Updated {$affected} rows";
+```
+
+### delete()
+
+```php
+public function delete(): int
+```
+
+Delete records matching the query.
+
+**Returns:** Number of deleted rows
+
+**Example:**
+```php
+$deleted = QueryBuilder::table('users')
+    ->where('active', '=', 0)
+    ->whereNull('last_login')
+    ->delete();
+
+echo "Deleted {$deleted} inactive users";
+```
+
+<Note>
+Always use WHERE clauses with update() and delete() to avoid accidentally modifying/removing all records!
+</Note>
+
+## Usage Examples
+
+### Complex Query
+
+```php
+$users = QueryBuilder::table('users')
+    ->select(['id', 'name', 'email', 'role'])
+    ->where('active', '=', 1)
+    ->where('age', '>=', 18)
+    ->whereIn('role', ['admin', 'moderator'])
+    ->whereNotNull('email_verified_at')
+    ->orderBy('created_at', 'DESC')
+    ->limit(50)
+    ->get();
+```
+
+### Join with Conditions
+
+```php
+$ordersWithUsers = QueryBuilder::table('orders')
+    ->join('users', 'orders.user_id', '=', 'users.id')
+    ->select(['orders.*', 'users.name', 'users.email'])
+    ->where('orders.status', '=', 'completed')
+    ->where('orders.total', '>', 100)
+    ->orderBy('orders.created_at', 'DESC')
+    ->get();
+```
+
+### Conditional Updates
+
+```php
+// Deactivate users without recent logins
+$affected = QueryBuilder::table('users')
+    ->whereNotNull('last_login')
+    ->where('last_login', '<', date('Y-m-d', strtotime('-6 months')))
+    ->update([
+        'active' => 0,
+        'updated_at' => date('Y-m-d H:i:s')
+    ]);
+```
+
+### Bulk Operations
+
+```php
+// Check if any admin exists
+if (!QueryBuilder::table('users')->where('role', 'admin')->exists()) {
+    // Create first admin
+    QueryBuilder::table('users')->insert([
+        'name' => 'Admin',
+        'email' => 'admin@example.com',
+        'role' => 'admin',
+        'created_at' => date('Y-m-d H:i:s')
+    ]);
+}
+```
+
+## Best Practices
+
+<Note>
+- Always use parameter binding (automatically handled by QueryBuilder) to prevent SQL injection
+- Use `limit()` with potentially large result sets to control memory usage
+- Add indexes to columns frequently used in WHERE and JOIN clauses for better performance
+- Use `exists()` instead of `count() > 0` when you only need to check if records exist
+- Chain method calls for readable, maintainable query code
+</Note>
+
+## Connection Management
+
+The QueryBuilder automatically manages database connections using PDO. It connects to a SQLite database by default, located at `database/database.sqlite`.
+
+<Expandable title="Connection Details">
+- **Driver:** SQLite (PDO)
+- **Location:** `database/database.sqlite`
+- **Error Mode:** `PDO::ERRMODE_EXCEPTION`
+- **Auto-created:** Database directory and file created automatically if they don't exist
+</Expandable>
+
+## Related
+
+- [Model](/api/model) - Eloquent-style ORM models
+- [Schema](/api/schema) - Database schema builder
+- [Migration](/api/migration) - Database migration system

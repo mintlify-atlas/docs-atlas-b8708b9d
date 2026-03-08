@@ -1,0 +1,353 @@
+---
+title: 'Rust FFI Integration'
+description: 'Deep dive into how Lyger bridges PHP and Rust using Foreign Function Interface'
+---
+
+## What is FFI?
+
+FFI (Foreign Function Interface) is a PHP extension that allows PHP code to call functions written in other languages like C, Rust, or C++. Lyger uses FFI to execute performance-critical code in Rust while maintaining PHP's ease of use.
+
+<Info>
+  FFI became stable in PHP 7.4 and is production-ready in PHP 8.0+
+</Info>
+
+## How Lyger Uses FFI
+
+Lyger's `Engine` class initializes FFI during application startup and maintains a connection to the Rust library throughout the request lifecycle.
+
+### FFI Initialization
+
+```php
+// From Lyger/Core/Engine.php
+private function initializeFFI(): void
+{
+    $libPath = $this->findLibrary();
+
+    if ($libPath === null) {
+        // FFI not available - use PHP fallback
+        return;
+    }
+
+    $header = "
+        char* lyger_hello_world(void);
+        double lyger_heavy_computation(unsigned long iterations);
+        char* lyger_system_info(void);
+        void lyger_cache_set(const char* key, const char* value);
+        char* lyger_cache_get(const char* key);
+        void lyger_cache_delete(const char* key);
+        void lyger_cache_clear(void);
+        unsigned long lyger_cache_size(void);
+        void lyger_free_string(char* ptr);
+        void lyger_free_engine(void* ptr);
+
+        // Zero-Copy Database
+        unsigned long lyger_db_query(const char* dsn, const char* query);
+        char* lyger_jsonify_result(unsigned long ptr);
+        void lyger_free_result(unsigned long ptr);
+
+        // HTTP Server
+        void lyger_start_server(unsigned short port);
+        void lyger_stop_server(void);
+    ";
+
+    $this->ffi = FFI::cdef($header, $libPath);
+}
+```
+
+<Note>
+  The C header defines the interface between PHP and Rust. Every exported Rust function must have a corresponding declaration here.
+</Note>
+
+## Function Signatures
+
+### C-Compatible Types
+
+FFI requires C-compatible types. Here's how Lyger maps between PHP, C, and Rust:
+
+| PHP Type | C Type | Rust Type | Example |
+|----------|--------|-----------|---------|
+| `int` | `unsigned long` | `u64` | `$iterations = 1000000` |
+| `float` | `double` | `f64` | `$result = 3.14159` |
+| `string` | `const char*` | `*const c_char` | `$key = "cache_key"` |
+| `void` | `void` | `()` | Function returns nothing |
+| `pointer` | `unsigned long` | `usize` | Memory address as integer |
+
+### String Handling
+
+Strings require special handling across the FFI boundary:
+
+```php
+// From Lyger/Core/Engine.php
+public function cacheGet(string $key): string
+{
+    if ($this->ffi === null) {
+        return '';
+    }
+
+    try {
+        // Pass PHP string to Rust
+        $result = $this->ffi->lyger_cache_get($key);
+        
+        // Copy C string to PHP string
+        $string = FFI::string($result);
+        
+        // Free Rust-allocated memory
+        $this->ffi->lyger_free_string($result);
+        
+        return $string;
+    } catch (\Throwable $e) {
+        return '';
+    }
+}
+```
+
+<Warning>
+  Always call the appropriate `free` function after copying strings from Rust to PHP. Failing to do so causes memory leaks.
+</Warning>
+
+## Zero-Copy Pointers
+
+For large data structures like database results, Lyger uses pointer passing to avoid copying data:
+
+```php
+// From Lyger/Core/Engine.php
+public function dbQuery(string $dsn, string $query): int
+{
+    if ($this->ffi === null) {
+        return 0;
+    }
+
+    try {
+        // Returns pointer (memory address) to result set in Rust
+        return (int) $this->ffi->lyger_db_query($dsn, $query);
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
+public function jsonifyResult(int $ptr): string
+{
+    if ($this->ffi === null || $ptr === 0) {
+        return '[]';
+    }
+
+    try {
+        // Pass pointer back to Rust to serialize
+        $result = $this->ffi->lyger_jsonify_result($ptr);
+        $string = FFI::string($result);
+        $this->ffi->lyger_free_string($result);
+        return $string;
+    } catch (\Throwable $e) {
+        return '[]';
+    }
+}
+```
+
+### Pointer Lifecycle
+
+1. **Rust executes query** and stores results in memory
+2. **Rust returns pointer** (memory address) as `unsigned long`
+3. **PHP holds pointer** without copying data
+4. **PHP requests serialization** when needed
+5. **Rust serializes** and returns JSON string
+6. **PHP frees** both JSON string and result set
+
+<Accordion title="Why use pointers instead of returning data directly?">
+  Database result sets can be megabytes in size. Passing them through FFI requires serialization (Rust → C → PHP), which is expensive. By using pointers, the data stays in Rust's memory until needed, then only the final JSON is copied once.
+</Accordion>
+
+## Error Handling
+
+Lyger wraps all FFI calls in try-catch blocks to handle errors gracefully:
+
+```php
+public function heavyComputation(int $iterations = 1000000): float
+{
+    if ($this->ffi === null) {
+        // FFI unavailable - use PHP implementation
+        $result = 0;
+        for ($i = 0; $i < $iterations; $i++) {
+            $result += sqrt($i) * sin($i);
+        }
+        return $result;
+    }
+
+    try {
+        // Try Rust implementation
+        return $this->ffi->lyger_heavy_computation($iterations);
+    } catch (\Throwable $e) {
+        // FFI call failed - return safe default
+        return 0;
+    }
+}
+```
+
+### Error Scenarios
+
+FFI calls can fail for several reasons:
+
+- **Library not found**: Rust library missing or wrong path
+- **Symbol not found**: Function name mismatch in header
+- **Type mismatch**: Passing wrong data types
+- **Segmentation fault**: Memory corruption in Rust code
+- **Access violation**: Attempting to access freed memory
+
+<Warning>
+  Always provide fallback implementations for critical functionality. Never let FFI errors crash your application.
+</Warning>
+
+## Performance Considerations
+
+### When to Use FFI
+
+FFI adds overhead (~1-10μs per call). Use it for operations where Rust's performance benefit exceeds the FFI overhead:
+
+**Good candidates for FFI:**
+- CPU-intensive computations
+- Database query execution
+- HTTP request parsing
+- Data serialization/deserialization
+- Cryptographic operations
+- Image processing
+
+**Poor candidates for FFI:**
+- Simple string concatenation
+- Array manipulations
+- Small loops
+- One-time initialization code
+
+### Batching Operations
+
+Minimize FFI calls by batching operations:
+
+```php
+// ❌ Bad: Multiple FFI calls
+foreach ($items as $item) {
+    $engine->cacheSet($item['key'], $item['value']);
+}
+
+// ✅ Better: Single FFI call with JSON
+$engine->cacheSetBatch(json_encode($items));
+```
+
+## Real-World Example
+
+Here's a complete example using the Cache API:
+
+```php
+use Lyger\Core\Engine;
+
+$engine = Engine::getInstance();
+
+// Store data (FFI call to Rust)
+$engine->cacheSet('user:1', json_encode([
+    'id' => 1,
+    'name' => 'John Doe',
+    'email' => 'john@example.com'
+]));
+
+// Retrieve data (FFI call to Rust)
+$userData = $engine->cacheGet('user:1');
+$user = json_decode($userData, true);
+
+echo "Hello, {$user['name']}!";
+
+// Check cache size (FFI call to Rust)
+$size = $engine->cacheSize();
+echo "Cache contains {$size} items";
+
+// Clear cache (FFI call to Rust)
+$engine->cacheClear();
+```
+
+## Debugging FFI
+
+### Checking FFI Availability
+
+```php
+// Check if FFI extension is loaded
+if (!extension_loaded('ffi')) {
+    die('FFI extension not available');
+}
+
+// Check if Rust library was loaded
+$engine = Engine::getInstance();
+if ($engine->ffi === null) {
+    echo "Rust library not loaded - using PHP fallback\n";
+} else {
+    echo "FFI initialized successfully\n";
+}
+```
+
+### Testing FFI Functions
+
+```php
+use Lyger\Core\Engine;
+
+$engine = Engine::getInstance();
+
+// Test basic FFI call
+$result = $engine->helloWorld();
+echo "FFI Test: {$result}\n";
+
+// Test performance
+$start = microtime(true);
+$result = $engine->heavyComputation(1000000);
+$elapsed = (microtime(true) - $start) * 1000;
+echo "Computation took {$elapsed}ms\n";
+```
+
+<Note>
+  If FFI calls fail silently, check your PHP error logs. Segmentation faults may not appear in your application output.
+</Note>
+
+## Library Compilation
+
+Lyger includes pre-compiled Rust libraries for common platforms. If you need to compile for a different platform:
+
+```bash
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Compile Rust library
+cd libraries/rust
+cargo build --release
+
+# Copy to appropriate directory
+cp target/release/liblyger.so ../libs/Linux/lyger-Linux-x64.so
+```
+
+<Accordion title="Custom Rust compilation targets">
+  For cross-compilation, you'll need to install additional targets:
+  
+  ```bash
+  # macOS ARM64
+  rustup target add aarch64-apple-darwin
+  cargo build --release --target aarch64-apple-darwin
+  
+  # Windows x64
+  rustup target add x86_64-pc-windows-gnu
+  cargo build --release --target x86_64-pc-windows-gnu
+  
+  # Linux ARM64
+  rustup target add aarch64-unknown-linux-gnu
+  cargo build --release --target aarch64-unknown-linux-gnu
+  ```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/core/architecture">
+    Understand the full architecture
+  </Card>
+  <Card title="Always-Alive Server" icon="server" href="/core/always-alive-server">
+    Learn about the persistent server
+  </Card>
+  <Card title="Zero-Copy Database" icon="database" href="/core/zero-copy-database">
+    Explore database optimizations
+  </Card>
+  <Card title="Cache System" icon="memory" href="/advanced/cache">
+    Use the Rust-powered cache
+  </Card>
+</CardGroup>

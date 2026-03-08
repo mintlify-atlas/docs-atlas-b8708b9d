@@ -1,80 +1,566 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Build your first Lyger application in minutes
 ---
 
-## Get started in three steps
+This guide will help you create your first Lyger application. We'll build a simple API with a "Hello World" endpoint and explore the core concepts of the framework.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, make sure you have:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+- Completed the [Installation](/installation) guide
+- Lyger framework installed and running
+- Basic knowledge of PHP
+
+## Your First Route
+
+Lyger makes it easy to define routes. Routes are defined in the `routes/web.php` file.
+
+<Steps>
+  <Step title="Understand the Default Route">
+    When you first install Lyger, `routes/web.php` contains a default route:
+
+    ```php routes/web.php
+    <?php
+
+    declare(strict_types=1);
+
+    use Lyger\Routing\Route;
+    use Lyger\Http\Response;
+
+    Route::get('/', function () {
+        return Response::json([
+            'name' => 'Lyger Framework v0.1',
+            'status' => 'running',
+            'message' => 'Welcome to Lyger - PHP on steroids with Rust FFI'
+        ]);
+    });
+    ```
+
+    Start your server and test it:
+
+    ```bash
+    php rawr serve
+    ```
+
+    Visit `http://localhost:8000` - you should see the JSON response.
+  </Step>
+
+  <Step title="Add a Simple Route">
+    Let's add a new route. Open `routes/web.php` and add:
+
+    ```php routes/web.php
+    Route::get('/hello', function () {
+        return Response::json([
+            'message' => 'Hello, World!'
+        ]);
+    });
+    ```
+
+    Visit `http://localhost:8000/hello` to see your new route in action!
+  </Step>
+
+  <Step title="Add Route Parameters">
+    Routes can accept parameters using curly braces:
+
+    ```php routes/web.php
+    Route::get('/greet/{name}', function ($request, $name) {
+        return Response::json([
+            'message' => "Hello, {$name}!"
+        ]);
+    });
+    ```
+
+    Try it: `http://localhost:8000/greet/Alice`
+  </Step>
+</Steps>
+
+## HTTP Methods
+
+Lyger supports all standard HTTP methods:
+
+```php routes/web.php
+use Lyger\Routing\Route;
+use Lyger\Http\Response;
+
+// GET request
+Route::get('/users', function () {
+    return Response::json(['users' => []]);
+});
+
+// POST request
+Route::post('/users', function ($request) {
+    $data = $request->all();
+    return Response::json(['created' => $data], 201);
+});
+
+// PUT request
+Route::put('/users/{id}', function ($request, $id) {
+    return Response::json(['updated' => $id]);
+});
+
+// DELETE request
+Route::delete('/users/{id}', function ($request, $id) {
+    return Response::json(['deleted' => $id]);
+});
+```
+
+## Creating Your First Controller
+
+Controllers help organize your application logic. Let's create one using the Rawr CLI.
+
+<Steps>
+  <Step title="Generate a Controller">
+    Use the `make:controller` command:
+
+    ```bash
+    php rawr make:controller UserController
+    ```
+
+    This creates `App/Controllers/UserController.php`:
+
+    ```php App/Controllers/UserController.php
+    <?php
+
+    declare(strict_types=1);
+
+    namespace App\Controllers;
+
+    use Lyger\Http\Request;
+    use Lyger\Http\Response;
+
+    class UserController
+    {
+        public function index(): Response
+        {
+            return Response::json(['message' => 'UserController controller']);
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Add Controller Methods">
+    Edit the controller to add more methods:
+
+    ```php App/Controllers/UserController.php
+    <?php
+
+    declare(strict_types=1);
+
+    namespace App\Controllers;
+
+    use Lyger\Http\Request;
+    use Lyger\Http\Response;
+
+    class UserController
+    {
+        public function index(): Response
+        {
+            return Response::json([
+                'users' => [
+                    ['id' => 1, 'name' => 'Alice'],
+                    ['id' => 2, 'name' => 'Bob'],
+                ]
+            ]);
+        }
+
+        public function show(Request $request, string $id): Response
+        {
+            return Response::json([
+                'user' => ['id' => $id, 'name' => 'Alice']
+            ]);
+        }
+
+        public function store(Request $request): Response
+        {
+            $data = $request->all();
+            
+            return Response::json([
+                'message' => 'User created',
+                'user' => $data
+            ], 201);
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Register Controller Routes">
+    Update `routes/web.php` to use the controller:
+
+    ```php routes/web.php
+    <?php
+
+    declare(strict_types=1);
+
+    use Lyger\Routing\Route;
+    use App\Controllers\UserController;
+
+    Route::get('/users', [UserController::class, 'index']);
+    Route::get('/users/{id}', [UserController::class, 'show']);
+    Route::post('/users', [UserController::class, 'store']);
+    ```
+
+    <Note>
+      Controllers are automatically resolved from the container. The first parameter is always the `Request` object, followed by route parameters.
+    </Note>
+  </Step>
+</Steps>
+
+## Working with Requests
+
+The `Request` object provides access to all request data:
+
+```php
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+Route::post('/api/data', function (Request $request) {
+    // Get all input data
+    $all = $request->all();
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    // Get specific input
+    $name = $request->input('name');
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    // Get request method
+    $method = $request->method(); // POST
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    // Get request URI
+    $uri = $request->uri(); // /api/data
+    
+    return Response::json(['received' => $all]);
+});
+```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Response Types
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Lyger provides several response types:
 
-### Step 3: Go live
+<CodeGroup>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```php JSON Response
+use Lyger\Http\Response;
 
-## Next steps
+Route::get('/api/users', function () {
+    return Response::json([
+        'users' => ['Alice', 'Bob']
+    ]);
+});
+```
 
-Now that you have your docs running, explore these key features:
+```php HTML Response
+use Lyger\Http\Response;
+
+Route::get('/welcome', function () {
+    $html = '<h1>Welcome to Lyger</h1>';
+    return Response::html($html);
+});
+```
+
+```php Error Response
+use Lyger\Http\Response;
+
+Route::get('/not-found', function () {
+    return Response::error('Resource not found', 404);
+});
+```
+
+```php Custom Status
+use Lyger\Http\Response;
+
+Route::post('/users', function ($request) {
+    $user = ['id' => 1, 'name' => 'Alice'];
+    return Response::json($user, 201); // 201 Created
+});
+```
+
+</CodeGroup>
+
+## Building a Complete Example
+
+Let's build a simple task management API to demonstrate Lyger's capabilities.
+
+<Steps>
+  <Step title="Create the Controller">
+    ```bash
+    php rawr make:controller TaskController
+    ```
+
+    Edit `App/Controllers/TaskController.php`:
+
+    ```php App/Controllers/TaskController.php
+    <?php
+
+    declare(strict_types=1);
+
+    namespace App\Controllers;
+
+    use Lyger\Http\Request;
+    use Lyger\Http\Response;
+
+    class TaskController
+    {
+        private array $tasks = [];
+
+        public function __construct()
+        {
+            // In a real app, this would come from a database
+            $this->tasks = [
+                ['id' => 1, 'title' => 'Learn Lyger', 'completed' => false],
+                ['id' => 2, 'title' => 'Build an API', 'completed' => false],
+            ];
+        }
+
+        public function index(): Response
+        {
+            return Response::json([
+                'tasks' => $this->tasks,
+                'count' => count($this->tasks)
+            ]);
+        }
+
+        public function show(Request $request, string $id): Response
+        {
+            $task = null;
+            foreach ($this->tasks as $t) {
+                if ($t['id'] == $id) {
+                    $task = $t;
+                    break;
+                }
+            }
+
+            if (!$task) {
+                return Response::error('Task not found', 404);
+            }
+
+            return Response::json(['task' => $task]);
+        }
+
+        public function store(Request $request): Response
+        {
+            $data = $request->all();
+            
+            $task = [
+                'id' => count($this->tasks) + 1,
+                'title' => $data['title'] ?? 'Untitled',
+                'completed' => false
+            ];
+
+            return Response::json([
+                'message' => 'Task created successfully',
+                'task' => $task
+            ], 201);
+        }
+
+        public function update(Request $request, string $id): Response
+        {
+            $data = $request->all();
+            
+            return Response::json([
+                'message' => 'Task updated successfully',
+                'task' => [
+                    'id' => $id,
+                    'title' => $data['title'] ?? 'Updated Task',
+                    'completed' => $data['completed'] ?? false
+                ]
+            ]);
+        }
+
+        public function destroy(Request $request, string $id): Response
+        {
+            return Response::json([
+                'message' => 'Task deleted successfully',
+                'id' => $id
+            ]);
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Define the Routes">
+    Add routes to `routes/web.php`:
+
+    ```php routes/web.php
+    <?php
+
+    declare(strict_types=1);
+
+    use Lyger\Routing\Route;
+    use App\Controllers\TaskController;
+
+    // Task API routes
+    Route::get('/api/tasks', [TaskController::class, 'index']);
+    Route::get('/api/tasks/{id}', [TaskController::class, 'show']);
+    Route::post('/api/tasks', [TaskController::class, 'store']);
+    Route::put('/api/tasks/{id}', [TaskController::class, 'update']);
+    Route::delete('/api/tasks/{id}', [TaskController::class, 'destroy']);
+    ```
+  </Step>
+
+  <Step title="Test Your API">
+    Start the server if it's not running:
+
+    ```bash
+    php rawr serve
+    ```
+
+    Test your endpoints:
+
+    <CodeGroup>
+
+    ```bash List Tasks
+    curl http://localhost:8000/api/tasks
+    ```
+
+    ```bash Get Single Task
+    curl http://localhost:8000/api/tasks/1
+    ```
+
+    ```bash Create Task
+    curl -X POST http://localhost:8000/api/tasks \
+      -H "Content-Type: application/json" \
+      -d '{"title":"Write documentation"}'
+    ```
+
+    ```bash Update Task
+    curl -X PUT http://localhost:8000/api/tasks/1 \
+      -H "Content-Type: application/json" \
+      -d '{"title":"Learn Lyger","completed":true}'
+    ```
+
+    ```bash Delete Task
+    curl -X DELETE http://localhost:8000/api/tasks/1
+    ```
+
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## CLI Commands Reference
+
+Lyger includes a powerful CLI tool called `rawr`. Here are the essential commands:
+
+<CodeGroup>
+
+```bash Server
+# Start development server
+php rawr serve
+
+# Start on custom port
+php rawr serve --port=3000
+
+# Legacy PHP server
+php rawr serve:php
+```
+
+```bash Generators
+# Create controller
+php rawr make:controller UserController
+
+# Create model
+php rawr make:model User
+
+# Create model with migration
+php rawr make:model User --migration
+
+# Create migration
+php rawr make:migration create_users_table
+
+# Create auth scaffolding
+php rawr make:auth
+
+# Create admin dashboard
+php rawr make:dash Admin
+```
+
+```bash Database
+# Run migrations
+php rawr migrate
+
+# Rollback migrations
+php rawr migrate:rollback
+
+# Check migration status
+php rawr migrate:status
+```
+
+</CodeGroup>
+
+## Understanding the Request Flow
+
+Here's how Lyger processes requests:
+
+```
+Browser Request
+      ↓
+public/index.php (entry point)
+      ↓
+Router (routes/web.php)
+      ↓
+Controller Method
+      ↓
+Response
+      ↓
+Browser
+```
+
+The application bootstrap happens in `public/index.php`:
+
+```php public/index.php
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Lyger\Http\Request;
+use Lyger\Routing\Router;
+use Lyger\Container\Container;
+
+// Create container
+$container = Container::getInstance();
+
+// Create router and load routes
+$router = new Router($container);
+$router->loadRoutesFromFile(__DIR__ . '/../routes/web.php');
+
+// Capture request and dispatch
+$request = Request::capture();
+$response = $router->dispatch($request);
+$response->send();
+```
+
+## Next Steps
+
+Congratulations! You've built your first Lyger application. Here's what to explore next:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Database & ORM" icon="database" href="/database/getting-started">
+    Learn about Eloquent-style models and migrations
+  </Card>
+  <Card title="Middleware" icon="shield" href="/routing/middleware">
+    Add middleware to your routes
+  </Card>
+  <Card title="CLI Commands" icon="terminal" href="/cli/overview">
+    Explore scaffold commands
+  </Card>
+  <Card title="Authentication" icon="lock" href="/cli/make-auth">
+    Secure your application
+  </Card>
 </CardGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  **Pro Tip**: Lyger combines PHP simplicity with Rust performance. As you build, you'll experience the framework's high-performance features like the Rust-powered query builder and Always-Alive server mode.
 </Note>
+
+## Example Projects
+
+Want to see Lyger in action? Check out these example projects:
+
+- **[Dental Clinic Demo](https://github.com/betoalien/Lyger-PHP-v0.1-Dental-Clinic-Demo)** - A full-featured application showcasing Lyger's capabilities
+
+## Getting Help
+
+- **GitHub Issues**: [Report bugs or request features](https://github.com/betoalien/Lyger-PHP-Framework/issues)
+- **Documentation**: Explore the rest of this documentation
+- **Source Code**: Study the framework source in the `Lyger/` directory

@@ -1,0 +1,717 @@
+---
+title: 'Migration'
+description: 'Database migration system for version control of your database schema'
+---
+
+## Overview
+
+The Migration system provides version control for your database schema, allowing you to easily modify and share database structure across environments. It consists of two classes: `Migration` (base class for migrations) and `Migrator` (manages migration execution).
+
+## Class Reference
+
+### Lyger\Database\Migration
+
+Base class for all database migrations.
+
+**Location:** `Lyger/Database/Migration.php`
+
+### Lyger\Database\Migrator
+
+Manages database migration execution.
+
+**Location:** `Lyger/Database/Migration.php:43`
+
+## Migration Class
+
+### Abstract Methods
+
+#### up()
+
+```php
+abstract public function up(): void
+```
+
+Run the migration to create or modify database structures.
+
+**Example:**
+```php
+public function up(): void
+{
+    $this->getSchema()->create('users', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->timestamps();
+    });
+}
+```
+
+#### down()
+
+```php
+abstract public function down(): void
+```
+
+Reverse the migration (rollback changes).
+
+**Example:**
+```php
+public function down(): void
+{
+    $this->getSchema()->drop('users');
+}
+```
+
+### Helper Methods
+
+#### getConnection()
+
+```php
+public function getConnection(): \PDO
+```
+
+Get the database PDO connection.
+
+**Returns:** PDO instance
+
+**Example:**
+```php
+public function up(): void
+{
+    $pdo = $this->getConnection();
+    $pdo->exec("CREATE INDEX idx_name ON users(name)");
+}
+```
+
+#### getSchema()
+
+```php
+public function getSchema(): Schema
+```
+
+Get a Schema builder instance.
+
+**Returns:** Schema instance
+
+**Example:**
+```php
+public function up(): void
+{
+    $schema = $this->getSchema();
+    $schema->create('posts', function ($table) {
+        $table->id();
+        $table->string('title');
+    });
+}
+```
+
+## Migrator Class
+
+### Constructor
+
+```php
+public function __construct(?string $migrationsPath = null)
+```
+
+Create a new Migrator instance.
+
+<ParamField path="migrationsPath" type="string" optional>
+Path to migrations directory. Defaults to `database/migrations/`
+</ParamField>
+
+**Example:**
+```php
+$migrator = new Migrator();
+// or with custom path
+$migrator = new Migrator('/path/to/migrations');
+```
+
+### Methods
+
+#### path()
+
+```php
+public function path(string $path): self
+```
+
+Set the migrations directory path.
+
+<ParamField path="path" type="string" required>
+Path to migrations directory
+</ParamField>
+
+**Returns:** `$this` for method chaining
+
+**Example:**
+```php
+$migrator = new Migrator();
+$migrator->path('/custom/migrations');
+```
+
+#### run()
+
+```php
+public function run(): void
+```
+
+Run all pending migrations.
+
+**Example:**
+```php
+$migrator = new Migrator();
+$migrator->run();
+
+// Output:
+// Running migration: CreateUsersTable
+// Migrated:  CreateUsersTable
+```
+
+#### rollback()
+
+```php
+public function rollback(): void
+```
+
+Rollback the last batch of migrations.
+
+**Example:**
+```php
+$migrator = new Migrator();
+$migrator->rollback();
+
+// Output:
+// Rolling back migration: CreateUsersTable
+// Rolled back:  CreateUsersTable
+```
+
+#### reset()
+
+```php
+public function reset(): void
+```
+
+Rollback all migrations.
+
+**Example:**
+```php
+$migrator = new Migrator();
+$migrator->reset();
+```
+
+#### status()
+
+```php
+public function status(): void
+```
+
+Display the status of all migrations.
+
+**Example:**
+```php
+$migrator = new Migrator();
+$migrator->status();
+
+// Output:
+// | Migration |
+// |-----------|
+// | CreateUsersTable | Ran |
+// | CreatePostsTable | Pending |
+```
+
+#### make()
+
+```php
+public function make(string $name): void
+```
+
+Create a new migration file.
+
+<ParamField path="name" type="string" required>
+Name of the migration (e.g., "create_users_table")
+</ParamField>
+
+**Example:**
+```php
+$migrator = new Migrator();
+$migrator->make('create_users_table');
+
+// Output:
+// Created migration: 2026_03_08_120000_create_users_table.php
+```
+
+#### getMigrationsPath()
+
+```php
+public function getMigrationsPath(): string
+```
+
+Get the migrations directory path.
+
+**Returns:** Migration directory path
+
+#### getMigrations()
+
+```php
+public function getMigrations(): array
+```
+
+Get all loaded migrations.
+
+**Returns:** Array of migration name => file path
+
+#### loadMigrations()
+
+```php
+public function loadMigrations(): void
+```
+
+Load all migration files from the migrations directory.
+
+## Creating Migrations
+
+### Using make()
+
+The easiest way to create a migration:
+
+```php
+$migrator = new Migrator();
+$migrator->make('create_users_table');
+```
+
+This generates a timestamped file like `2026_03_08_120000_CreateUsersTable.php`:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreateUsersTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('users', function ($table) {
+            $table->id();
+            // Add your columns here
+            // $table->string('name');
+            // $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('users');
+    }
+}
+```
+
+### Manual Migration Creation
+
+Create a file in `database/migrations/` with the format: `YYYY_MM_DD_HHiiss_DescriptiveName.php`
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreateProductsTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('products', function ($table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description');
+            $table->decimal('price', 10, 2);
+            $table->integer('stock')->default(0);
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('products');
+    }
+}
+```
+
+## Migration Examples
+
+### Creating a Table
+
+```php
+<?php
+
+use Lyger\Database\Migration;
+
+class CreateUsersTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('users', function ($table) {
+            $table->id();
+            $table->string('name', 100);
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->timestamp('email_verified_at')->nullable();
+            $table->boolean('is_active')->default(1);
+            $table->timestamps();
+            $table->softDeletes();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('users');
+    }
+}
+```
+
+### Adding Columns to Existing Table
+
+```php
+<?php
+
+use Lyger\Database\Migration;
+
+class AddPhoneToUsersTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->table('users', function ($table) {
+            $table->string('phone', 20)->nullable();
+            $table->string('address')->nullable();
+        });
+    }
+
+    public function down(): void
+    {
+        // Note: SQLite doesn't support dropping columns easily
+        // You may need to recreate the table without these columns
+    }
+}
+```
+
+### Creating Related Tables
+
+```php
+<?php
+
+use Lyger\Database\Migration;
+
+class CreatePostsTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('posts', function ($table) {
+            $table->id();
+            $table->integer('user_id')->unsigned();
+            $table->string('title');
+            $table->text('content');
+            $table->string('status')->default('draft');
+            $table->datetime('published_at')->nullable();
+            $table->timestamps();
+            
+            $table->index(['user_id']);
+            $table->index(['status', 'published_at']);
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('posts');
+    }
+}
+```
+
+### Creating Pivot Tables
+
+```php
+<?php
+
+use Lyger\Database\Migration;
+
+class CreateRoleUserTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('role_user', function ($table) {
+            $table->integer('role_id')->unsigned();
+            $table->integer('user_id')->unsigned();
+            $table->timestamps();
+            
+            // Composite index
+            $table->index(['role_id', 'user_id']);
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('role_user');
+    }
+}
+```
+
+### Using Raw SQL
+
+```php
+<?php
+
+use Lyger\Database\Migration;
+
+class CreateCustomIndex extends Migration
+{
+    public function up(): void
+    {
+        $pdo = $this->getConnection();
+        $pdo->exec("
+            CREATE INDEX idx_users_email_active 
+            ON users(email, is_active) 
+            WHERE deleted_at IS NULL
+        ");
+    }
+
+    public function down(): void
+    {
+        $pdo = $this->getConnection();
+        $pdo->exec("DROP INDEX idx_users_email_active");
+    }
+}
+```
+
+### Complex Migration
+
+```php
+<?php
+
+use Lyger\Database\Migration;
+
+class CreateEcommerceSchema extends Migration
+{
+    public function up(): void
+    {
+        $schema = $this->getSchema();
+        
+        // Categories table
+        $schema->create('categories', function ($table) {
+            $table->id();
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->text('description')->nullable();
+            $table->integer('parent_id')->nullable();
+            $table->timestamps();
+        });
+        
+        // Products table
+        $schema->create('products', function ($table) {
+            $table->id();
+            $table->integer('category_id')->unsigned();
+            $table->string('sku', 50)->unique();
+            $table->string('name');
+            $table->text('description');
+            $table->decimal('price', 10, 2);
+            $table->integer('stock')->unsigned()->default(0);
+            $table->boolean('is_active')->default(1);
+            $table->json('attributes')->nullable();
+            $table->timestamps();
+            
+            $table->index(['category_id']);
+            $table->index(['is_active', 'stock']);
+        });
+        
+        // Orders table
+        $schema->create('orders', function ($table) {
+            $table->id();
+            $table->integer('user_id')->unsigned();
+            $table->string('order_number', 20)->unique();
+            $table->decimal('subtotal', 10, 2);
+            $table->decimal('tax', 10, 2);
+            $table->decimal('total', 10, 2);
+            $table->string('status')->default('pending');
+            $table->json('shipping_address');
+            $table->datetime('shipped_at')->nullable();
+            $table->timestamps();
+            
+            $table->index(['user_id']);
+            $table->index(['status', 'created_at']);
+        });
+        
+        // Order items table
+        $schema->create('order_items', function ($table) {
+            $table->id();
+            $table->integer('order_id')->unsigned();
+            $table->integer('product_id')->unsigned();
+            $table->integer('quantity')->unsigned();
+            $table->decimal('price', 10, 2);
+            $table->decimal('total', 10, 2);
+            $table->timestamps();
+            
+            $table->index(['order_id']);
+        });
+    }
+
+    public function down(): void
+    {
+        $schema = $this->getSchema();
+        
+        $schema->drop('order_items');
+        $schema->drop('orders');
+        $schema->drop('products');
+        $schema->drop('categories');
+    }
+}
+```
+
+## Running Migrations
+
+### Run All Pending Migrations
+
+```php
+$migrator = new Migrator();
+$migrator->run();
+```
+
+### Check Migration Status
+
+```php
+$migrator = new Migrator();
+$migrator->status();
+```
+
+### Rollback Last Batch
+
+```php
+$migrator = new Migrator();
+$migrator->rollback();
+```
+
+### Reset All Migrations
+
+```php
+$migrator = new Migrator();
+$migrator->reset();
+```
+
+### Fresh Migration (Reset + Run)
+
+```php
+$migrator = new Migrator();
+$migrator->reset();
+$migrator->run();
+```
+
+## Migration Batching
+
+Migrations are run in batches. Each time you call `run()`, all pending migrations are executed as a single batch. When you `rollback()`, the last batch is reversed.
+
+**Example workflow:**
+
+```php
+// Initial setup - Batch 1
+$migrator->make('create_users_table');
+$migrator->make('create_posts_table');
+$migrator->run(); // Runs both as Batch 1
+
+// Later additions - Batch 2
+$migrator->make('add_fields_to_users');
+$migrator->run(); // Runs as Batch 2
+
+// Rollback only the last batch
+$migrator->rollback(); // Rolls back Batch 2 only
+```
+
+## Migrations Table
+
+The Migrator automatically creates a `migrations` table to track which migrations have been run:
+
+```sql
+CREATE TABLE migrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    migration VARCHAR(255) NOT NULL,
+    batch INTEGER NOT NULL
+)
+```
+
+<Note>
+This table is created automatically the first time you run migrations. You don't need to create it manually.
+</Note>
+
+## Best Practices
+
+<Note>
+- **Never modify existing migrations** that have been run in production. Create a new migration instead.
+- **Always provide a `down()` method** to reverse your migration
+- **Test migrations locally** before deploying to production
+- **Use descriptive names** for migrations (e.g., `create_users_table`, not just `users`)
+- **Keep migrations focused** - one logical change per migration
+- **Order matters** - migrations run in alphabetical order by filename
+- **Use the Schema builder** instead of raw SQL when possible for database portability
+</Note>
+
+## Common Patterns
+
+### Renaming a Table
+
+```php
+public function up(): void
+{
+    $pdo = $this->getConnection();
+    $pdo->exec("ALTER TABLE old_name RENAME TO new_name");
+}
+
+public function down(): void
+{
+    $pdo = $this->getConnection();
+    $pdo->exec("ALTER TABLE new_name RENAME TO old_name");
+}
+```
+
+### Seeding Data in Migration
+
+```php
+public function up(): void
+{
+    $this->getSchema()->create('roles', function ($table) {
+        $table->id();
+        $table->string('name')->unique();
+        $table->timestamps();
+    });
+    
+    // Seed initial roles
+    $pdo = $this->getConnection();
+    $stmt = $pdo->prepare("INSERT INTO roles (name, created_at) VALUES (?, ?)");
+    $now = date('Y-m-d H:i:s');
+    
+    foreach (['admin', 'moderator', 'user'] as $role) {
+        $stmt->execute([$role, $now]);
+    }
+}
+```
+
+### Conditional Migrations
+
+```php
+public function up(): void
+{
+    $pdo = $this->getConnection();
+    
+    // Check if table exists
+    $result = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+    
+    if (!$result->fetch()) {
+        $this->getSchema()->create('users', function ($table) {
+            $table->id();
+            $table->string('name');
+            $table->timestamps();
+        });
+    }
+}
+```
+
+## Related
+
+- [Model](/api/model) - Eloquent-style ORM models
+- [QueryBuilder](/api/query-builder) - Fluent query builder
+- [Schema](/api/schema) - Database schema builder

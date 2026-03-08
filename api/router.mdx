@@ -1,0 +1,413 @@
+---
+title: 'Router'
+description: 'HTTP routing system for dispatching requests to handlers'
+---
+
+## Overview
+
+The `Router` class handles HTTP request routing in Lyger. It supports dynamic route parameters, controller-based routing, and automatic dependency injection through the container.
+
+## Constructor
+
+Create a new Router instance with dependency injection support.
+
+```php
+public function __construct(Container $container)
+```
+
+<ParamField path="container" type="Container" required>
+Container instance for dependency injection
+</ParamField>
+
+### Example
+
+```php
+use Lyger\Routing\Router;
+use Lyger\Container\Container;
+
+$container = new Container();
+$router = new Router($container);
+```
+
+## Route Registration
+
+### registerRoute
+
+Register a route with a specific HTTP method and handler.
+
+```php
+public function registerRoute(string $method, string $path, callable|array $handler): void
+```
+
+<ParamField path="method" type="string" required>
+HTTP method (GET, POST, PUT, DELETE)
+</ParamField>
+
+<ParamField path="path" type="string" required>
+Route path pattern, supports dynamic parameters with `{param}` syntax
+</ParamField>
+
+<ParamField path="handler" type="callable|array" required>
+Route handler - can be a closure or controller array `[ControllerClass, 'method']`
+</ParamField>
+
+### Example
+
+<Tabs>
+  <Tab title="Closure Handler">
+    ```php
+    use Lyger\Http\Request;
+    use Lyger\Http\Response;
+
+    $router->registerRoute('GET', '/users/{id}', function(Request $request, $id) {
+        return Response::json([
+            'user_id' => $id,
+            'name' => 'John Doe'
+        ]);
+    });
+    ```
+  </Tab>
+
+  <Tab title="Controller Handler">
+    ```php
+    use App\Controllers\UserController;
+
+    $router->registerRoute('GET', '/users/{id}', [UserController::class, 'show']);
+    
+    // In UserController.php:
+    class UserController {
+        public function show(Request $request, $id) {
+            return Response::json(['id' => $id]);
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Multiple Parameters">
+    ```php
+    $router->registerRoute('GET', '/posts/{postId}/comments/{commentId}', 
+        function(Request $request, $postId, $commentId) {
+            return Response::json([
+                'post_id' => $postId,
+                'comment_id' => $commentId
+            ]);
+        }
+    );
+    ```
+  </Tab>
+</Tabs>
+
+### loadRoutesFromFile
+
+Load routes from a PHP file using the Route facade.
+
+```php
+public function loadRoutesFromFile(string $filePath): void
+```
+
+<ParamField path="filePath" type="string" required>
+Path to the routes file
+</ParamField>
+
+### Example
+
+```php
+// In your bootstrap/app setup:
+$router->loadRoutesFromFile(__DIR__ . '/routes/web.php');
+
+// In routes/web.php:
+use Lyger\Routing\Route;
+
+Route::get('/', function($request) {
+    return Response::html('<h1>Welcome to Lyger</h1>');
+});
+
+Route::get('/api/users', [UserController::class, 'index']);
+Route::post('/api/users', [UserController::class, 'store']);
+Route::get('/api/users/{id}', [UserController::class, 'show']);
+```
+
+## Request Dispatching
+
+### dispatch
+
+Match a request to a registered route and execute its handler.
+
+```php
+public function dispatch(Request $request): Response
+```
+
+<ParamField path="request" type="Request" required>
+The HTTP request to dispatch
+</ParamField>
+
+### Returns
+
+<ResponseField name="response" type="Response">
+Response object from the matched handler, or 404 error if no route matches
+</ResponseField>
+
+<Note>
+The router automatically passes the Request object as the first parameter to all handlers, followed by any route parameters.
+</Note>
+
+### Example
+
+```php
+use Lyger\Http\Request;
+
+$request = Request::capture();
+$response = $router->dispatch($request);
+$response->send();
+```
+
+## Route Facade
+
+The `Route` class provides a convenient facade for defining routes that can be loaded by the router.
+
+### Static Methods
+
+<Tabs>
+  <Tab title="GET">
+    ```php
+    Route::get(string $path, callable|array $handler): void
+    ```
+    
+    Register a GET route.
+    
+    ```php
+    use Lyger\Routing\Route;
+    
+    Route::get('/users', function($request) {
+        return Response::json(['users' => []]);
+    });
+    ```
+  </Tab>
+
+  <Tab title="POST">
+    ```php
+    Route::post(string $path, callable|array $handler): void
+    ```
+    
+    Register a POST route.
+    
+    ```php
+    Route::post('/users', function($request) {
+        $data = $request->all();
+        return Response::json(['created' => true]);
+    });
+    ```
+  </Tab>
+
+  <Tab title="PUT">
+    ```php
+    Route::put(string $path, callable|array $handler): void
+    ```
+    
+    Register a PUT route.
+    
+    ```php
+    Route::put('/users/{id}', function($request, $id) {
+        return Response::json(['updated' => $id]);
+    });
+    ```
+  </Tab>
+
+  <Tab title="DELETE">
+    ```php
+    Route::delete(string $path, callable|array $handler): void
+    ```
+    
+    Register a DELETE route.
+    
+    ```php
+    Route::delete('/users/{id}', function($request, $id) {
+        return Response::json(['deleted' => $id]);
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Route Parameters
+
+Routes support dynamic parameters using curly brace syntax `{param}`.
+
+### Single Parameter
+
+```php
+Route::get('/users/{id}', function($request, $id) {
+    return Response::json(['user_id' => $id]);
+});
+
+// Matches: /users/123
+// $id = "123"
+```
+
+### Multiple Parameters
+
+```php
+Route::get('/users/{userId}/posts/{postId}', function($request, $userId, $postId) {
+    return Response::json([
+        'user_id' => $userId,
+        'post_id' => $postId
+    ]);
+});
+
+// Matches: /users/42/posts/789
+// $userId = "42", $postId = "789"
+```
+
+## Controller Integration
+
+Controllers are automatically instantiated with dependency injection when using array handlers.
+
+### Example
+
+```php
+// routes/api.php
+use App\Controllers\PostController;
+use Lyger\Routing\Route;
+
+Route::get('/posts', [PostController::class, 'index']);
+Route::post('/posts', [PostController::class, 'store']);
+Route::get('/posts/{id}', [PostController::class, 'show']);
+Route::put('/posts/{id}', [PostController::class, 'update']);
+Route::delete('/posts/{id}', [PostController::class, 'destroy']);
+```
+
+```php
+// App/Controllers/PostController.php
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class PostController
+{
+    public function index(Request $request): Response
+    {
+        $posts = // ... fetch posts
+        return Response::json(['posts' => $posts]);
+    }
+
+    public function show(Request $request, string $id): Response
+    {
+        $post = // ... fetch post by $id
+        return Response::json(['post' => $post]);
+    }
+
+    public function store(Request $request): Response
+    {
+        $data = $request->all();
+        // ... create post
+        return Response::json(['created' => true], 201);
+    }
+
+    public function update(Request $request, string $id): Response
+    {
+        $data = $request->all();
+        // ... update post
+        return Response::json(['updated' => true]);
+    }
+
+    public function destroy(Request $request, string $id): Response
+    {
+        // ... delete post
+        return Response::json(['deleted' => true]);
+    }
+}
+```
+
+## Response Formatting
+
+The router automatically formats handler return values:
+
+<Tabs>
+  <Tab title="Response Object">
+    ```php
+    Route::get('/users', function($request) {
+        return Response::json(['users' => []]);
+    });
+    // Returns as-is
+    ```
+  </Tab>
+
+  <Tab title="Array">
+    ```php
+    Route::get('/users', function($request) {
+        return ['users' => []];
+    });
+    // Automatically converted to Response::json()
+    ```
+  </Tab>
+
+  <Tab title="String">
+    ```php
+    Route::get('/', function($request) {
+        return '<h1>Welcome</h1>';
+    });
+    // Automatically converted to Response::html()
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+The router handles errors gracefully:
+
+- **404 Not Found**: Returned when no route matches the request
+- **500 Internal Server Error**: Returned when handler execution fails
+
+```php
+// No matching route
+GET /non-existent
+// Returns: Response::error('Not Found', 404)
+
+// Handler throws exception
+Route::get('/error', function() {
+    throw new \Exception('Something went wrong');
+});
+// Returns: Response::error('Internal Server Error: Something went wrong', 500)
+```
+
+## Complete Example
+
+```php
+use Lyger\Routing\Router;
+use Lyger\Routing\Route;
+use Lyger\Container\Container;
+use Lyger\Http\Request;
+
+// Create router with container
+$container = new Container();
+$router = new Router($container);
+
+// Define routes using facade
+Route::get('/', function($request) {
+    return Response::html('<h1>Lyger API</h1>');
+});
+
+Route::get('/api/users', function($request) {
+    return ['users' => ['John', 'Jane', 'Bob']];
+});
+
+Route::get('/api/users/{id}', function($request, $id) {
+    return Response::json(['id' => $id, 'name' => 'User ' . $id]);
+});
+
+Route::post('/api/users', function($request) {
+    $data = $request->all();
+    return Response::json(['created' => true, 'data' => $data], 201);
+});
+
+// Load routes into router
+$routes = Route::getRoutes();
+foreach ($routes as $route) {
+    $router->registerRoute($route['method'], $route['path'], $route['handler']);
+}
+
+// Dispatch request
+$request = Request::capture();
+$response = $router->dispatch($request);
+$response->send();
+```

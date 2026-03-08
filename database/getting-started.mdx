@@ -1,0 +1,207 @@
+---
+title: 'Getting Started'
+description: 'Learn how to configure and connect to databases in Lyger'
+---
+
+## Introduction
+
+Lyger provides a powerful database layer inspired by Laravel's Eloquent ORM and Query Builder. It supports multiple database drivers including SQLite, PostgreSQL, MySQL, and MariaDB, making it easy to work with databases in your PHP applications.
+
+## Database Configuration
+
+Database configuration is managed through environment variables in your `.env` file.
+
+<Tabs>
+  <Tab title="SQLite">
+    SQLite is the default database driver and requires no additional setup.
+
+    ```bash .env
+    DB_CONNECTION=sqlite
+    DB_DATABASE=database/database.sqlite
+    ```
+
+    <Note>
+      SQLite is perfect for development and small applications. The database file will be automatically created in the `database/` directory.
+    </Note>
+  </Tab>
+
+  <Tab title="PostgreSQL">
+    Configure PostgreSQL connection:
+
+    ```bash .env
+    DB_CONNECTION=postgres
+    DB_HOST=127.0.0.1
+    DB_PORT=5432
+    DB_DATABASE=lyger
+    DB_USERNAME=postgres
+    DB_PASSWORD=
+    ```
+
+    <Warning>
+      PostgreSQL support requires the Rust database drivers to be installed.
+    </Warning>
+  </Tab>
+
+  <Tab title="MySQL">
+    Configure MySQL connection:
+
+    ```bash .env
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=lyger
+    DB_USERNAME=root
+    DB_PASSWORD=
+    ```
+  </Tab>
+
+  <Tab title="MariaDB">
+    Configure MariaDB connection (same as MySQL):
+
+    ```bash .env
+    DB_CONNECTION=mariadb
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=lyger
+    DB_USERNAME=root
+    DB_PASSWORD=
+    ```
+  </Tab>
+</Tabs>
+
+## Database Structure
+
+Lyger automatically creates and manages your database directory structure:
+
+```
+your-project/
+├── database/
+│   ├── database.sqlite      # SQLite database file
+│   └── migrations/           # Migration files
+└── .env                      # Environment configuration
+```
+
+## Quick Example
+
+Here's a quick example to get you started with database operations:
+
+<Steps>
+  <Step title="Create a Model">
+    Create a model class that extends `Lyger\Database\Model`:
+
+    ```php app/Models/User.php
+    <?php
+
+    namespace App\Models;
+
+    use Lyger\Database\Model;
+
+    class User extends Model
+    {
+        protected string $table = 'users';
+        protected array $fillable = ['name', 'email', 'password'];
+        protected array $hidden = ['password'];
+    }
+    ```
+  </Step>
+
+  <Step title="Query the Database">
+    Use the model to interact with your database:
+
+    ```php
+    // Find a user by ID
+    $user = User::find(1);
+
+    // Create a new user
+    $user = User::create([
+        'name' => 'John Doe',
+        'email' => 'john@example.com',
+        'password' => password_hash('secret', PASSWORD_DEFAULT)
+    ]);
+
+    // Get all users
+    $users = User::all();
+
+    // Query with conditions
+    $activeUsers = User::query()
+        ->where('status', '=', 'active')
+        ->orderBy('created_at', 'DESC')
+        ->get();
+    ```
+  </Step>
+
+  <Step title="Update and Delete">
+    Modify existing records:
+
+    ```php
+    // Update a user
+    $user = User::find(1);
+    $user->name = 'Jane Doe';
+    $user->save();
+
+    // Delete a user
+    $user = User::find(1);
+    $user->delete();
+    ```
+  </Step>
+</Steps>
+
+## Database Connection
+
+The database connection is automatically managed by Lyger. The framework handles:
+
+- Connection pooling
+- Error handling with exceptions
+- PDO attribute configuration
+- Automatic directory creation
+
+### Manual Connection Access
+
+If you need direct PDO access, you can get it through the QueryBuilder:
+
+```php
+use Lyger\Database\QueryBuilder;
+
+$pdo = (new QueryBuilder('users'))->getConnection();
+```
+
+<Warning>
+  Manual PDO access should be used sparingly. The Query Builder and Eloquent ORM provide safer, more convenient methods for most use cases.
+</Warning>
+
+## Error Handling
+
+Lyger uses PDO exceptions for database errors:
+
+```php
+try {
+    $user = User::findOrFail(999);
+} catch (\RuntimeException $e) {
+    // Handle not found error
+    echo "User not found: " . $e->getMessage();
+}
+
+try {
+    User::create(['invalid' => 'data']);
+} catch (\PDOException $e) {
+    // Handle database errors
+    echo "Database error: " . $e->getMessage();
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Query Builder" icon="code" href="/database/query-builder">
+    Learn about the fluent Query Builder interface
+  </Card>
+  <Card title="Eloquent Models" icon="database" href="/database/eloquent-models">
+    Explore the Eloquent ORM features
+  </Card>
+  <Card title="Migrations" icon="arrows-rotate" href="/database/migrations">
+    Manage your database schema with migrations
+  </Card>
+  <Card title="Relationships" icon="link" href="/database/relationships">
+    Define relationships between models
+  </Card>
+</CardGroup>

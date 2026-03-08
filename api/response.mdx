@@ -1,0 +1,601 @@
+---
+title: 'Response'
+description: 'HTTP response creation and output handling'
+---
+
+## Overview
+
+The `Response` class provides a fluent interface for creating and sending HTTP responses with proper status codes, headers, and content formatting.
+
+## Constructor
+
+Create a new Response instance.
+
+```php
+public function __construct(mixed $content = '', int $statusCode = 200, array $headers = [])
+```
+
+<ParamField path="content" type="mixed" default="">
+Response content (string, array, or any value convertible to string)
+</ParamField>
+
+<ParamField path="statusCode" type="int" default="200">
+HTTP status code
+</ParamField>
+
+<ParamField path="headers" type="array" default="[]">
+Associative array of HTTP headers
+</ParamField>
+
+### Example
+
+```php
+use Lyger\Http\Response;
+
+$response = new Response('Hello World', 200, [
+    'Content-Type' => 'text/plain'
+]);
+```
+
+## Static Factory Methods
+
+### json
+
+Create a JSON response.
+
+```php
+public static function json(mixed $data, int $statusCode = 200): self
+```
+
+<ParamField path="data" type="mixed" required>
+Data to encode as JSON (typically an array)
+</ParamField>
+
+<ParamField path="statusCode" type="int" default="200">
+HTTP status code
+</ParamField>
+
+### Returns
+
+<ResponseField name="response" type="Response">
+Response with Content-Type set to `application/json`
+</ResponseField>
+
+<Note>
+JSON encoding uses `JSON_UNESCAPED_UNICODE` and `JSON_UNESCAPED_SLASHES` flags for clean output.
+</Note>
+
+### Example
+
+<Tabs>
+  <Tab title="Basic JSON">
+    ```php
+    return Response::json([
+        'success' => true,
+        'message' => 'User created'
+    ]);
+    // Content-Type: application/json
+    // {"success":true,"message":"User created"}
+    ```
+  </Tab>
+
+  <Tab title="With Status Code">
+    ```php
+    return Response::json([
+        'id' => 123,
+        'name' => 'John Doe'
+    ], 201);
+    // 201 Created
+    ```
+  </Tab>
+
+  <Tab title="Nested Data">
+    ```php
+    return Response::json([
+        'user' => [
+            'id' => 1,
+            'name' => 'John',
+            'email' => 'john@example.com'
+        ],
+        'posts' => [
+            ['id' => 1, 'title' => 'First Post'],
+            ['id' => 2, 'title' => 'Second Post']
+        ]
+    ]);
+    ```
+  </Tab>
+</Tabs>
+
+### html
+
+Create an HTML response.
+
+```php
+public static function html(string $html, int $statusCode = 200): self
+```
+
+<ParamField path="html" type="string" required>
+HTML content
+</ParamField>
+
+<ParamField path="statusCode" type="int" default="200">
+HTTP status code
+</ParamField>
+
+### Returns
+
+<ResponseField name="response" type="Response">
+Response with Content-Type set to `text/html`
+</ResponseField>
+
+### Example
+
+```php
+return Response::html('
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Welcome</title>
+    </head>
+    <body>
+        <h1>Welcome to Lyger</h1>
+        <p>The fastest PHP framework</p>
+    </body>
+    </html>
+');
+```
+
+### text
+
+Create a plain text response.
+
+```php
+public static function text(string $text, int $statusCode = 200): self
+```
+
+<ParamField path="text" type="string" required>
+Plain text content
+</ParamField>
+
+<ParamField path="statusCode" type="int" default="200">
+HTTP status code
+</ParamField>
+
+### Returns
+
+<ResponseField name="response" type="Response">
+Response with Content-Type set to `text/plain`
+</ResponseField>
+
+### Example
+
+```php
+return Response::text('Plain text response');
+// Content-Type: text/plain
+
+return Response::text('Server is healthy', 200);
+```
+
+### error
+
+Create an error response with JSON format.
+
+```php
+public static function error(string $message, int $statusCode = 500): self
+```
+
+<ParamField path="message" type="string" required>
+Error message
+</ParamField>
+
+<ParamField path="statusCode" type="int" default="500">
+HTTP error status code
+</ParamField>
+
+### Returns
+
+<ResponseField name="response" type="Response">
+JSON response with error message
+</ResponseField>
+
+### Example
+
+<Tabs>
+  <Tab title="404 Not Found">
+    ```php
+    return Response::error('User not found', 404);
+    // {"error":"User not found"}
+    ```
+  </Tab>
+
+  <Tab title="400 Bad Request">
+    ```php
+    return Response::error('Invalid input data', 400);
+    // {"error":"Invalid input data"}
+    ```
+  </Tab>
+
+  <Tab title="401 Unauthorized">
+    ```php
+    return Response::error('Authentication required', 401);
+    // {"error":"Authentication required"}
+    ```
+  </Tab>
+
+  <Tab title="500 Server Error">
+    ```php
+    return Response::error('Internal server error', 500);
+    // {"error":"Internal server error"}
+    ```
+  </Tab>
+</Tabs>
+
+## Instance Methods
+
+### send
+
+Send the response to the client (outputs headers and content).
+
+```php
+public function send(): void
+```
+
+### Example
+
+```php
+$response = Response::json(['status' => 'ok']);
+$response->send();
+// Outputs HTTP headers and JSON content
+```
+
+### setHeader
+
+Set a custom HTTP header.
+
+```php
+public function setHeader(string $key, string $value): self
+```
+
+<ParamField path="key" type="string" required>
+Header name
+</ParamField>
+
+<ParamField path="value" type="string" required>
+Header value
+</ParamField>
+
+### Returns
+
+<ResponseField name="response" type="Response">
+Same Response instance for method chaining
+</ResponseField>
+
+### Example
+
+```php
+return Response::json(['data' => 'value'])
+    ->setHeader('X-API-Version', '1.0')
+    ->setHeader('X-Rate-Limit', '1000');
+```
+
+### getHeader
+
+Get a header value from the response.
+
+```php
+public function getHeader(string $key, ?string $default = null): ?string
+```
+
+<ParamField path="key" type="string" required>
+Header name
+</ParamField>
+
+<ParamField path="default" type="string|null" default="null">
+Default value if header doesn't exist
+</ParamField>
+
+### Returns
+
+<ResponseField name="value" type="string|null">
+Header value or default
+</ResponseField>
+
+### Example
+
+```php
+$response = Response::json(['data' => 'value'])
+    ->setHeader('X-Custom', 'value');
+
+$custom = $response->getHeader('X-Custom'); // "value"
+$missing = $response->getHeader('X-Missing', 'default'); // "default"
+```
+
+### getStatusCode
+
+Get the HTTP status code.
+
+```php
+public function getStatusCode(): int
+```
+
+### Returns
+
+<ResponseField name="statusCode" type="int">
+HTTP status code
+</ResponseField>
+
+### Example
+
+```php
+$response = Response::json(['data' => 'value'], 201);
+$code = $response->getStatusCode(); // 201
+```
+
+### getContent
+
+Get the response content as a string.
+
+```php
+public function getContent(): string
+```
+
+### Returns
+
+<ResponseField name="content" type="string">
+Response content
+</ResponseField>
+
+### Example
+
+```php
+$response = Response::json(['name' => 'John']);
+$content = $response->getContent();
+// '{"name":"John"}'
+```
+
+## HTTP Status Codes
+
+Common status codes to use with Response methods:
+
+### Success (2xx)
+
+```php
+// 200 OK - Standard success response
+Response::json(['data' => 'value'], 200);
+
+// 201 Created - Resource successfully created
+Response::json(['id' => 123], 201);
+
+// 204 No Content - Success with no response body
+Response::text('', 204);
+```
+
+### Client Errors (4xx)
+
+```php
+// 400 Bad Request - Invalid input
+Response::error('Invalid request data', 400);
+
+// 401 Unauthorized - Authentication required
+Response::error('Authentication required', 401);
+
+// 403 Forbidden - Authenticated but not authorized
+Response::error('Access denied', 403);
+
+// 404 Not Found - Resource doesn't exist
+Response::error('User not found', 404);
+
+// 422 Unprocessable Entity - Validation failed
+Response::error('Validation failed', 422);
+```
+
+### Server Errors (5xx)
+
+```php
+// 500 Internal Server Error - Generic server error
+Response::error('Internal server error', 500);
+
+// 503 Service Unavailable - Service temporarily down
+Response::error('Service unavailable', 503);
+```
+
+## Custom Headers
+
+### CORS Headers
+
+```php
+return Response::json(['data' => 'value'])
+    ->setHeader('Access-Control-Allow-Origin', '*')
+    ->setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE')
+    ->setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+```
+
+### Cache Control
+
+```php
+return Response::json(['data' => 'value'])
+    ->setHeader('Cache-Control', 'public, max-age=3600')
+    ->setHeader('Expires', gmdate('D, d M Y H:i:s', time() + 3600) . ' GMT');
+```
+
+### Custom API Headers
+
+```php
+return Response::json(['users' => $users])
+    ->setHeader('X-Total-Count', (string) count($users))
+    ->setHeader('X-Page', '1')
+    ->setHeader('X-Per-Page', '10');
+```
+
+## Response Patterns
+
+### RESTful API Responses
+
+```php
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+// List resources
+Route::get('/api/users', function(Request $request) {
+    return Response::json([
+        'data' => [
+            ['id' => 1, 'name' => 'John'],
+            ['id' => 2, 'name' => 'Jane']
+        ]
+    ]);
+});
+
+// Create resource
+Route::post('/api/users', function(Request $request) {
+    $data = $request->all();
+    
+    return Response::json([
+        'id' => 123,
+        'name' => $data['name']
+    ], 201);
+});
+
+// Update resource
+Route::put('/api/users/{id}', function(Request $request, $id) {
+    return Response::json([
+        'id' => $id,
+        'updated' => true
+    ]);
+});
+
+// Delete resource
+Route::delete('/api/users/{id}', function(Request $request, $id) {
+    return Response::text('', 204);
+});
+```
+
+### Error Handling
+
+```php
+Route::get('/api/users/{id}', function(Request $request, $id) {
+    if (!is_numeric($id)) {
+        return Response::error('Invalid user ID', 400);
+    }
+    
+    $user = findUser($id);
+    
+    if (!$user) {
+        return Response::error('User not found', 404);
+    }
+    
+    return Response::json(['user' => $user]);
+});
+```
+
+### Conditional Responses
+
+```php
+Route::get('/api/data', function(Request $request) {
+    $format = $request->get('format', 'json');
+    
+    $data = ['name' => 'John', 'age' => 30];
+    
+    return match($format) {
+        'json' => Response::json($data),
+        'text' => Response::text(json_encode($data)),
+        'html' => Response::html("<pre>" . json_encode($data, JSON_PRETTY_PRINT) . "</pre>"),
+        default => Response::error('Invalid format', 400)
+    };
+});
+```
+
+### Paginated Responses
+
+```php
+Route::get('/api/posts', function(Request $request) {
+    $page = (int) $request->get('page', 1);
+    $perPage = 10;
+    
+    // Fetch posts...
+    $posts = [];
+    $total = 100;
+    
+    return Response::json([
+        'data' => $posts,
+        'meta' => [
+            'current_page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'last_page' => ceil($total / $perPage)
+        ]
+    ])->setHeader('X-Total-Count', (string) $total);
+});
+```
+
+## Complete Example
+
+```php
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+use Lyger\Routing\Route;
+
+// Homepage
+Route::get('/', function(Request $request) {
+    return Response::html('
+        <!DOCTYPE html>
+        <html>
+        <head><title>Lyger API</title></head>
+        <body>
+            <h1>Welcome to Lyger API</h1>
+            <p>Visit /api/users for the API</p>
+        </body>
+        </html>
+    ');
+});
+
+// API endpoint with validation
+Route::post('/api/users', function(Request $request) {
+    $name = $request->input('name');
+    $email = $request->input('email');
+    
+    // Validate input
+    if (!$name || !$email) {
+        return Response::error('Name and email are required', 400);
+    }
+    
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return Response::error('Invalid email format', 422);
+    }
+    
+    // Check authentication
+    $apiKey = $request->header('X-API-Key');
+    if ($apiKey !== 'secret-key') {
+        return Response::error('Unauthorized', 401);
+    }
+    
+    // Create user
+    $user = [
+        'id' => rand(1000, 9999),
+        'name' => $name,
+        'email' => $email,
+        'created_at' => date('Y-m-d H:i:s')
+    ];
+    
+    // Return with custom headers
+    return Response::json([
+        'success' => true,
+        'user' => $user
+    ], 201)
+        ->setHeader('X-API-Version', '1.0')
+        ->setHeader('X-Request-ID', uniqid());
+});
+
+// Health check endpoint
+Route::get('/health', function(Request $request) {
+    return Response::json([
+        'status' => 'healthy',
+        'timestamp' => time()
+    ])->setHeader('Cache-Control', 'no-cache');
+});
+
+// Download endpoint
+Route::get('/download', function(Request $request) {
+    return Response::text('File contents here')
+        ->setHeader('Content-Disposition', 'attachment; filename="data.txt"');
+});
+```

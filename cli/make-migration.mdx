@@ -1,0 +1,528 @@
+---
+title: make:migration
+description: Create a new database migration file
+icon: table
+---
+
+The `make:migration` command generates a new migration file in the `database/migrations` directory.
+
+## Syntax
+
+```bash
+php rawr make:migration <name>
+```
+
+<ParamField path="name" type="string" required>
+  Descriptive name for the migration (use snake_case)
+</ParamField>
+
+## Basic Usage
+
+Create a new migration:
+
+```bash
+php rawr make:migration create_users_table
+```
+
+**Output:**
+
+```
+Migration created: database/migrations/2026_03_08_143022_create_users_table.php
+```
+
+<Info>
+Migration filenames are automatically prefixed with a timestamp to ensure they run in the correct order.
+</Info>
+
+## Generated Migration
+
+The command creates a migration class with `up()` and `down()` methods:
+
+```php database/migrations/2026_03_08_143022_create_users_table.php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreateUsersTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('create_users_table', function ($table) {
+            $table->id();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('create_users_table');
+    }
+}
+```
+
+## Migration Structure
+
+### Class Name
+
+The class name is automatically generated from your migration name:
+
+| Migration Name | Generated Class Name |
+|----------------|---------------------|
+| `create_users_table` | `CreateUsersTable` |
+| `add_role_to_users` | `AddRoleToUsers` |
+| `update_products_table` | `UpdateProductsTable` |
+
+```php rawr (line 288)
+$className = str_replace(['-', '_'], '', ucwords($name, '-_'));
+```
+
+### Timestamp Prefix
+
+Each migration gets a unique timestamp:
+
+```php rawr (line 284)
+$timestamp = date('Y_m_d_His');
+$filename = $timestamp . '_' . $name . '.php';
+```
+
+Example: `2026_03_08_143022_create_users_table.php`
+
+### up() Method
+
+Defines the changes to apply:
+
+```php
+public function up(): void
+{
+    $this->getSchema()->create('users', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->string('email')->unique();
+        $table->timestamp('created_at')->nullable();
+    });
+}
+```
+
+### down() Method
+
+Defines how to reverse the changes:
+
+```php
+public function down(): void
+{
+    $this->getSchema()->drop('users');
+}
+```
+
+## Naming Conventions
+
+### Table Creation
+
+For creating new tables:
+
+```bash
+php rawr make:migration create_products_table
+php rawr make:migration create_orders_table
+```
+
+### Column Addition
+
+For adding columns to existing tables:
+
+```bash
+php rawr make:migration add_status_to_orders
+php rawr make:migration add_price_and_stock_to_products
+```
+
+### Column Modification
+
+For modifying existing columns:
+
+```bash
+php rawr make:migration update_users_email_nullable
+php rawr make:migration change_price_to_decimal_in_products
+```
+
+### Table Deletion
+
+For dropping tables:
+
+```bash
+php rawr make:migration drop_old_logs_table
+php rawr make:migration remove_deprecated_tables
+```
+
+<Note>
+Use descriptive names that clearly indicate what the migration does. This makes it easier to understand your database history.
+</Note>
+
+## Common Migration Patterns
+
+### Create Table with Columns
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreateProductsTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('products', function ($table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->decimal('price', 10, 2);
+            $table->integer('stock')->default(0);
+            $table->boolean('active')->default(true);
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('products');
+    }
+}
+```
+
+### Add Columns to Existing Table
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class AddCategoryToProducts extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->table('products', function ($table) {
+            $table->foreignId('category_id')->nullable()->constrained();
+            $table->string('sku')->unique();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->table('products', function ($table) {
+            $table->dropForeign(['category_id']);
+            $table->dropColumn(['category_id', 'sku']);
+        });
+    }
+}
+```
+
+### Create Pivot Table
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreateOrderProductTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('order_product', function ($table) {
+            $table->id();
+            $table->foreignId('order_id')->constrained()->onDelete('cascade');
+            $table->foreignId('product_id')->constrained()->onDelete('cascade');
+            $table->integer('quantity')->default(1);
+            $table->decimal('price', 10, 2);
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('order_product');
+    }
+}
+```
+
+### Add Indexes
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class AddIndexesToUsers extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->table('users', function ($table) {
+            $table->index('email');
+            $table->index(['last_name', 'first_name']);
+            $table->unique('username');
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->table('users', function ($table) {
+            $table->dropIndex(['email']);
+            $table->dropIndex(['last_name', 'first_name']);
+            $table->dropUnique(['username']);
+        });
+    }
+}
+```
+
+### Modify Columns
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class UpdateUsersEmailNullable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->table('users', function ($table) {
+            $table->string('email')->nullable()->change();
+            $table->string('phone', 20)->after('email');
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->table('users', function ($table) {
+            $table->string('email')->nullable(false)->change();
+            $table->dropColumn('phone');
+        });
+    }
+}
+```
+
+## Available Column Types
+
+The schema builder supports various column types:
+
+### Numeric
+
+```php
+$table->id();                           // Auto-incrementing primary key
+$table->integer('votes');               // INTEGER
+$table->bigInteger('votes');            // BIGINT
+$table->decimal('amount', 8, 2);        // DECIMAL with precision
+$table->float('amount', 8, 2);          // FLOAT
+$table->double('amount', 8, 2);         // DOUBLE
+```
+
+### String
+
+```php
+$table->string('name');                 // VARCHAR(255)
+$table->string('name', 100);            // VARCHAR(100)
+$table->text('description');            // TEXT
+$table->char('code', 10);               // CHAR(10)
+```
+
+### Date/Time
+
+```php
+$table->date('birth_date');             // DATE
+$table->dateTime('created_at');         // DATETIME
+$table->timestamp('updated_at');        // TIMESTAMP
+$table->timestamps();                   // created_at + updated_at
+$table->time('sunset');                 // TIME
+```
+
+### Other
+
+```php
+$table->boolean('active');              // BOOLEAN
+$table->json('options');                // JSON
+$table->binary('data');                 // BLOB
+$table->enum('status', ['pending', 'active', 'inactive']);
+```
+
+## Column Modifiers
+
+Customize columns with modifiers:
+
+```php
+$table->string('email')->unique();                  // Unique constraint
+$table->string('name')->nullable();                 // Allow NULL
+$table->integer('votes')->default(0);               // Default value
+$table->string('role')->default('user');            // String default
+$table->timestamp('created_at')->useCurrent();      // Current timestamp
+$table->string('bio')->after('email');              // Column order
+$table->text('description')->comment('User bio');   // Add comment
+```
+
+## Foreign Keys
+
+Define relationships between tables:
+
+```php
+// Simple foreign key
+$table->foreignId('user_id')->constrained();
+
+// Custom foreign key
+$table->foreignId('author_id')
+      ->constrained('users')
+      ->onDelete('cascade')
+      ->onUpdate('cascade');
+
+// Drop foreign key
+$table->dropForeign(['user_id']);
+```
+
+## Error Handling
+
+### Missing Name
+
+```bash
+php rawr make:migration
+```
+
+**Output:**
+
+```
+Error: Migration name required
+```
+
+### Directory Creation
+
+The command automatically creates the migrations directory if it doesn't exist:
+
+```php rawr (lines 279-282)
+$migrationsPath = $basePath . '/database/migrations';
+if (!is_dir($migrationsPath)) {
+    mkdir($migrationsPath, 0755, true);
+}
+```
+
+## Source Code
+
+The migration generation logic:
+
+```php rawr (lines 272-315)
+function makeMigration(string $basePath, ?string $name): void
+{
+    if ($name === null) {
+        echo "Error: Migration name required\n";
+        exit(1);
+    }
+
+    $migrationsPath = $basePath . '/database/migrations';
+    if (!is_dir($migrationsPath)) {
+        mkdir($migrationsPath, 0755, true);
+    }
+
+    $timestamp = date('Y_m_d_His');
+    $filename = $timestamp . '_' . $name . '.php';
+    $migrationPath = $migrationsPath . '/' . $filename;
+
+    $className = str_replace(['-', '_'], '', ucwords($name, '-_'));
+
+    $content = <<<PHP
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class {$className} extends Migration
+{
+    public function up(): void
+    {
+        \$this->getSchema()->create('{$name}', function (\$table) {
+            \$table->id();
+        });
+    }
+
+    public function down(): void
+    {
+        \$this->getSchema()->drop('{$name}');
+    }
+}
+PHP;
+
+    file_put_contents($migrationPath, $content);
+    echo "Migration created: database/migrations/{$filename}\n";
+}
+```
+
+## Workflow Example
+
+<CodeGroup>
+
+```bash Step 1: Create Migration
+php rawr make:migration create_posts_table
+```
+
+```php Step 2: Define Schema
+// database/migrations/2026_03_08_143022_create_posts_table.php
+public function up(): void
+{
+    $this->getSchema()->create('posts', function ($table) {
+        $table->id();
+        $table->foreignId('user_id')->constrained()->onDelete('cascade');
+        $table->string('title');
+        $table->text('content');
+        $table->string('status')->default('draft');
+        $table->timestamp('published_at')->nullable();
+        $table->timestamps();
+    });
+}
+```
+
+```bash Step 3: Run Migration
+php rawr migrate
+```
+
+```bash Step 4: Verify
+php rawr migrate:status
+```
+
+</CodeGroup>
+
+## Best Practices
+
+<Note>
+**Do:**
+- Use descriptive migration names
+- Always define both `up()` and `down()` methods
+- Keep migrations small and focused
+- Test rollbacks to ensure they work
+
+**Don't:**
+- Modify existing migrations after they've been run
+- Delete migration files
+- Put business logic in migrations
+- Use raw SQL unless absolutely necessary
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Run Migrations" icon="arrow-up" href="/cli/migrate">
+    Execute your migrations
+  </Card>
+  <Card title="Make Model" icon="database" href="/cli/make-model">
+    Create models for your tables
+  </Card>
+  <Card title="Schema Builder" icon="table-list" href="/api/schema">
+    Learn about schema building
+  </Card>
+  <Card title="Seeding" icon="seedling" href="/database/migrations">
+    Populate your database with test data
+  </Card>
+</CardGroup>

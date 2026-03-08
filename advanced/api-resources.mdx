@@ -1,0 +1,568 @@
+---
+title: 'API Resources'
+description: 'Transform models into beautiful JSON API responses'
+---
+
+API Resources provide a transformation layer between your Eloquent models and the JSON responses sent to your API clients. They give you fine-grained control over which attributes are exposed and how they're formatted.
+
+## Basic Resource
+
+Create a resource by extending `ApiResource`:
+
+```php
+use Lyger\Api\ApiResource;
+
+class UserResource extends ApiResource
+{
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->resource->id,
+            'name' => $this->resource->name,
+            'email' => $this->resource->email,
+            'created_at' => date('Y-m-d H:i:s', strtotime($this->resource->created_at))
+        ];
+    }
+}
+
+// Usage
+$user = User::find(1);
+$resource = new UserResource($user);
+
+return $resource->toArray();
+```
+
+<Note>
+The `$this->resource` property contains the underlying model instance passed to the resource constructor.
+</Note>
+
+## Resource Collections
+
+Transform multiple models at once:
+
+```php
+// Get all users
+$users = User::all();
+
+// Transform to collection
+$collection = UserResource::collection($users);
+
+return $collection->toArray();
+// Returns: ['data' => [...users...]]
+```
+
+### Collection Output
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com"
+    },
+    {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane@example.com"
+    }
+  ]
+}
+```
+
+## Conditional Attributes
+
+Include attributes based on conditions:
+
+```php
+class UserResource extends ApiResource
+{
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->resource->id,
+            'name' => $this->resource->name,
+            'email' => $this->resource->email,
+            
+            // Include only if user is admin
+            'admin_panel_url' => $this->when(
+                $this->resource->is_admin,
+                '/admin/dashboard'
+            ),
+            
+            // Include with default
+            'avatar' => $this->when(
+                $this->resource->avatar !== null,
+                $this->resource->avatar,
+                '/default-avatar.png'
+            )
+        ];
+    }
+}
+```
+
+## Relationships
+
+Include related models in your resource:
+
+<CodeGroup>
+
+```php User with Posts
+class UserResource extends ApiResource
+{
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->resource->id,
+            'name' => $this->resource->name,
+            'email' => $this->resource->email,
+            
+            // Include posts relationship
+            'posts' => PostResource::collection($this->resource->posts)
+        ];
+    }
+}
+
+class PostResource extends ApiResource
+{
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->resource->id,
+            'title' => $this->resource->title,
+            'excerpt' => substr($this->resource->content, 0, 100)
+        ];
+    }
+}
+```
+
+```php Conditional Relationships
+class UserResource extends ApiResource
+{
+    public function toArray(): array
+    {
+        $data = [
+            'id' => $this->resource->id,
+            'name' => $this->resource->name,
+            'email' => $this->resource->email
+        ];
+        
+        // Include relationship conditionally
+        if (isset($this->resource->posts)) {
+            $data['posts'] = PostResource::collection(
+                $this->resource->posts
+            );
+        }
+        
+        return $data;
+    }
+}
+```
+
+</CodeGroup>
+
+## Meta Data
+
+Add metadata to responses:
+
+```php
+$users = User::paginate(15);
+
+$collection = UserResource::collection($users)
+    ->withMeta([
+        'version' => '1.0',
+        'generated_at' => date('Y-m-d H:i:s'),
+        'server' => 'Lyger API'
+    ]);
+
+return $collection->toArray();
+```
+
+### Output with Meta
+
+```json
+{
+  "data": [...],
+  "meta": {
+    "version": "1.0",
+    "generated_at": "2026-03-08 10:30:00",
+    "server": "Lyger API"
+  }
+}
+```
+
+## API Response Helpers
+
+Use `ApiResponse` for standardized JSON responses:
+
+### Success Response
+
+```php
+use Lyger\Api\ApiResponse;
+
+// Simple success
+return ApiResponse::success();
+
+// Success with data
+return ApiResponse::success(['user' => $user], 'User created');
+
+// Custom status code
+return ApiResponse::success($data, 'Created', 201);
+```
+
+### Error Response
+
+```php
+// Simple error
+return ApiResponse::error('Invalid input', 400);
+
+// With validation errors
+return ApiResponse::validationError([
+    'email' => 'Email is required',
+    'password' => 'Password must be at least 8 characters'
+]);
+
+// Not found
+return ApiResponse::notFound('User not found');
+
+// Unauthorized
+return ApiResponse::unauthorized('Invalid token');
+
+// Forbidden
+return ApiResponse::forbidden('Access denied');
+```
+
+### Response Types
+
+```php
+// Created (201)
+return ApiResponse::created($user, 'User created successfully');
+
+// Deleted (200)
+return ApiResponse::deleted('User deleted successfully');
+```
+
+## Paginated Responses
+
+Handle pagination elegantly:
+
+```php
+use Lyger\Api\ApiResponse;
+
+// Get paginated users
+$page = (int) ($_GET['page'] ?? 1);
+$perPage = 15;
+
+$result = User::query()->paginate($perPage, $page);
+
+// Transform to resources
+$users = array_map(
+    fn($user) => (new UserResource($user))->toArray(),
+    $result['data']
+);
+
+// Return paginated response
+return ApiResponse::paginated(
+    $users,
+    $result['current_page'],
+    $result['per_page'],
+    $result['total']
+);
+```
+
+### Paginated Output
+
+```json
+{
+  "success": true,
+  "data": [...],
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 100,
+    "last_page": 7,
+    "from": 1,
+    "to": 15
+  },
+  "links": {
+    "self": "/api/users?page=1",
+    "first": "/api/users?page=1",
+    "last": "/api/users?page=7",
+    "next": "/api/users?page=2",
+    "prev": null
+  }
+}
+```
+
+## API Controller
+
+Use `ApiController` as a base for your API endpoints:
+
+```php
+use Lyger\Api\ApiController;
+
+class UserApiController extends ApiController
+{
+    public function index()
+    {
+        $users = User::all();
+        $resources = UserResource::collection($users);
+        
+        return $this->success($resources->toArray());
+    }
+    
+    public function show(int $id)
+    {
+        $user = User::find($id);
+        
+        if (!$user) {
+            return $this->notFound('User not found');
+        }
+        
+        $resource = new UserResource($user);
+        return $this->success($resource->toArray());
+    }
+    
+    public function store(array $data)
+    {
+        // Validate
+        if (empty($data['email'])) {
+            return $this->validationError([
+                'email' => 'Email is required'
+            ]);
+        }
+        
+        $user = User::create($data);
+        $resource = new UserResource($user);
+        
+        return $this->created($resource->toArray(), 'User created');
+    }
+    
+    public function destroy(int $id)
+    {
+        $user = User::find($id);
+        
+        if (!$user) {
+            return $this->notFound();
+        }
+        
+        $user->delete();
+        return $this->deleted('User deleted successfully');
+    }
+}
+```
+
+<Note>
+The `ApiController` provides helper methods for common API responses: `success()`, `error()`, `notFound()`, `unauthorized()`, `forbidden()`, `validationError()`, `created()`, and `deleted()`.
+</Note>
+
+## Advanced Resource Patterns
+
+### Computed Attributes
+
+```php
+class UserResource extends ApiResource
+{
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->resource->id,
+            'name' => $this->resource->name,
+            'email' => $this->resource->email,
+            
+            // Computed attributes
+            'full_name' => $this->resource->first_name . ' ' . $this->resource->last_name,
+            'avatar_url' => url('/avatars/' . $this->resource->avatar),
+            'member_since' => $this->formatDate($this->resource->created_at),
+            'is_premium' => $this->isPremiumUser(),
+            'posts_count' => count($this->resource->posts ?? [])
+        ];
+    }
+    
+    private function formatDate(string $date): string
+    {
+        return date('M d, Y', strtotime($date));
+    }
+    
+    private function isPremiumUser(): bool
+    {
+        return $this->resource->subscription_level === 'premium';
+    }
+}
+```
+
+### Nested Resources
+
+```php
+class PostResource extends ApiResource
+{
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->resource->id,
+            'title' => $this->resource->title,
+            'content' => $this->resource->content,
+            
+            // Nested user resource
+            'author' => new UserResource($this->resource->user),
+            
+            // Nested comments collection
+            'comments' => CommentResource::collection($this->resource->comments),
+            
+            // Nested tags
+            'tags' => array_map(
+                fn($tag) => ['id' => $tag->id, 'name' => $tag->name],
+                $this->resource->tags ?? []
+            )
+        ];
+    }
+}
+```
+
+### Resource Wrapping
+
+```php
+class JsonApiResource
+{
+    public static function wrap(ApiResource $resource, array $links = []): array
+    {
+        $data = $resource->toArray();
+        
+        $response = [
+            'data' => $data,
+            'jsonapi' => ['version' => '1.0']
+        ];
+        
+        if (!empty($links)) {
+            $response['links'] = $links;
+        }
+        
+        return $response;
+    }
+}
+
+// Usage
+$user = User::find(1);
+$resource = new UserResource($user);
+
+return JsonApiResource::wrap($resource, [
+    'self' => '/api/users/1',
+    'posts' => '/api/users/1/posts'
+]);
+```
+
+## Real-World Example
+
+Complete API endpoint with resources:
+
+```php
+// routes/api.php
+Router::group('/api', function() {
+    Router::get('/users', [UserApiController::class, 'index']);
+    Router::get('/users/:id', [UserApiController::class, 'show']);
+    Router::post('/users', [UserApiController::class, 'store']);
+    Router::put('/users/:id', [UserApiController::class, 'update']);
+    Router::delete('/users/:id', [UserApiController::class, 'destroy']);
+});
+
+// App/Resources/UserResource.php
+class UserResource extends ApiResource
+{
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->resource->id,
+            'name' => $this->resource->name,
+            'email' => $this->resource->email,
+            'avatar' => $this->resource->avatar ?? '/default-avatar.png',
+            'created_at' => date('c', strtotime($this->resource->created_at)),
+            'posts_count' => count($this->resource->posts ?? [])
+        ];
+    }
+}
+
+// App/Controllers/UserApiController.php
+class UserApiController extends ApiController
+{
+    public function index()
+    {
+        $page = (int) ($_GET['page'] ?? 1);
+        $search = $_GET['search'] ?? '';
+        
+        $query = User::query();
+        
+        if ($search) {
+            $query->where('name', 'like', "%{$search}%");
+        }
+        
+        $result = $query->paginate(15, $page);
+        
+        $users = array_map(
+            fn($user) => (new UserResource($user))->toArray(),
+            $result['data']
+        );
+        
+        return $this->paginated(
+            $users,
+            $result['current_page'],
+            $result['per_page'],
+            $result['total']
+        );
+    }
+}
+```
+
+## Performance Tips
+
+<Accordion title="Eager Loading">
+Prevent N+1 queries by eager loading relationships:
+
+```php
+// Bad: N+1 queries
+$users = User::all();
+$collection = UserResource::collection($users);
+
+// Good: Eager load
+$users = User::with('posts', 'comments')->get();
+$collection = UserResource::collection($users);
+```
+</Accordion>
+
+<Accordion title="Selective Fields">
+Allow clients to request specific fields:
+
+```php
+class UserResource extends ApiResource
+{
+    public function toArray(): array
+    {
+        $fields = explode(',', $_GET['fields'] ?? '');
+        
+        $data = [
+            'id' => $this->resource->id,
+            'name' => $this->resource->name,
+            'email' => $this->resource->email
+        ];
+        
+        if (empty($fields) || in_array('posts', $fields)) {
+            $data['posts'] = PostResource::collection($this->resource->posts);
+        }
+        
+        return $data;
+    }
+}
+
+// Usage: GET /api/users?fields=id,name
+```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Router" icon="route" href="/routing/basic-routing">
+    Learn about API routing
+  </Card>
+  <Card title="Admin Dashboard" icon="gauge-high" href="/advanced/admin-dashboard">
+    Build admin panels
+  </Card>
+</CardGroup>

@@ -1,0 +1,743 @@
+---
+title: 'Relationships'
+description: 'Define and work with relationships between Eloquent models'
+---
+
+## Introduction
+
+Eloquent makes it easy to manage relationships between database tables. Lyger supports several types of relationships including One-to-One, One-to-Many, and Many-to-Many, allowing you to work with related data in an expressive and intuitive way.
+
+## Relationship Types
+
+Lyger supports the following relationship types:
+
+- **One-to-One**: `hasOne()` and `belongsTo()`
+- **One-to-Many**: `hasMany()` and `belongsTo()`
+- **Many-to-Many**: `belongsToMany()`
+
+## One-to-One Relationships
+
+### Defining the Relationship
+
+A one-to-one relationship is used when one record is related to exactly one other record.
+
+```php app/Models/User.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class User extends Model
+{
+    protected string $table = 'users';
+    protected array $fillable = ['name', 'email', 'password'];
+    
+    public function profile()
+    {
+        return $this->hasOne(Profile::class);
+    }
+}
+```
+
+```php app/Models/Profile.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class Profile extends Model
+{
+    protected string $table = 'profiles';
+    protected array $fillable = ['user_id', 'bio', 'avatar', 'location'];
+    
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+```
+
+### Database Structure
+
+```sql
+-- users table
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(255),
+    email VARCHAR(255),
+    created_at TEXT,
+    updated_at TEXT
+);
+
+-- profiles table
+CREATE TABLE profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    bio TEXT,
+    avatar VARCHAR(255),
+    location VARCHAR(255),
+    created_at TEXT,
+    updated_at TEXT
+);
+```
+
+### Using the Relationship
+
+```php
+// Get user's profile
+$user = User::find(1);
+$profile = $user->profile()->get();
+
+if ($profile) {
+    echo $profile->bio;
+    echo $profile->location;
+}
+
+// Get profile's user
+$profile = Profile::find(1);
+$user = $profile->user()->get();
+
+echo $user->name;
+echo $user->email;
+```
+
+## One-to-Many Relationships
+
+### Defining the Relationship
+
+A one-to-many relationship is used when one record can have multiple related records.
+
+```php app/Models/User.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class User extends Model
+{
+    protected string $table = 'users';
+    protected array $fillable = ['name', 'email'];
+    
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+}
+```
+
+```php app/Models/Post.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class Post extends Model
+{
+    protected string $table = 'posts';
+    protected array $fillable = ['user_id', 'title', 'content', 'status'];
+    
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+```
+
+### Database Structure
+
+```sql
+-- users table
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(255),
+    email VARCHAR(255),
+    created_at TEXT,
+    updated_at TEXT
+);
+
+-- posts table
+CREATE TABLE posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    title VARCHAR(255),
+    content TEXT,
+    status VARCHAR(50),
+    created_at TEXT,
+    updated_at TEXT
+);
+```
+
+### Using the Relationship
+
+```php
+// Get all posts for a user
+$user = User::find(1);
+$posts = $user->posts()->get();
+
+foreach ($posts as $post) {
+    echo $post->title;
+    echo $post->content;
+}
+
+// Get first post
+$firstPost = $user->posts()->first();
+
+// Count posts
+$postCount = $user->posts()->count();
+
+// Get post's author
+$post = Post::find(1);
+$author = $post->user()->get();
+
+echo $author->name;
+```
+
+## Many-to-Many Relationships
+
+### Defining the Relationship
+
+A many-to-many relationship is used when records on both sides can have multiple related records.
+
+```php app/Models/Post.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class Post extends Model
+{
+    protected string $table = 'posts';
+    protected array $fillable = ['title', 'content'];
+    
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class);
+    }
+}
+```
+
+```php app/Models/Tag.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class Tag extends Model
+{
+    protected string $table = 'tags';
+    protected array $fillable = ['name', 'slug'];
+    
+    public function posts()
+    {
+        return $this->belongsToMany(Post::class);
+    }
+}
+```
+
+### Database Structure
+
+```sql
+-- posts table
+CREATE TABLE posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title VARCHAR(255),
+    content TEXT,
+    created_at TEXT,
+    updated_at TEXT
+);
+
+-- tags table
+CREATE TABLE tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(100),
+    slug VARCHAR(100),
+    created_at TEXT,
+    updated_at TEXT
+);
+
+-- post_tag pivot table (alphabetically ordered)
+CREATE TABLE post_tag (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER,
+    tag_id INTEGER,
+    created_at TEXT,
+    updated_at TEXT
+);
+```
+
+<Note>
+  The pivot table name is automatically determined by combining the related model names in alphabetical order: `post_tag`. You can customize this by passing a second parameter to `belongsToMany()`.
+</Note>
+
+### Using the Relationship
+
+```php
+// Get all tags for a post
+$post = Post::find(1);
+$tags = $post->tags()->get();
+
+foreach ($tags as $tag) {
+    echo $tag->name;
+}
+
+// Get all posts with a specific tag
+$tag = Tag::find(1);
+$posts = $tag->posts()->get();
+
+foreach ($posts as $post) {
+    echo $post->title;
+}
+```
+
+## Custom Foreign Keys
+
+### One-to-One and One-to-Many
+
+By default, Eloquent assumes the foreign key is `{model_name}_id`. You can customize this:
+
+```php
+// Custom foreign key in hasOne
+public function profile()
+{
+    return $this->hasOne(Profile::class, 'custom_user_id');
+}
+
+// Custom foreign key in hasMany
+public function posts()
+{
+    return $this->hasMany(Post::class, 'author_id');
+}
+
+// Custom foreign key in belongsTo
+public function user()
+{
+    return $this->belongsTo(User::class, 'author_id');
+}
+```
+
+### Many-to-Many
+
+Customize the pivot table name and keys:
+
+```php
+public function tags()
+{
+    return $this->belongsToMany(
+        Tag::class,          // Related model
+        'custom_pivot_table' // Custom pivot table name
+    );
+}
+```
+
+## Relationship Methods
+
+### hasOne()
+
+Defines a one-to-one relationship (parent side).
+
+<ParamField path="related" type="string" required>
+  The fully qualified class name of the related model
+</ParamField>
+
+<ParamField path="foreignKey" type="string">
+  The foreign key on the related model (defaults to `{model}_id`)
+</ParamField>
+
+```php
+public function profile()
+{
+    return $this->hasOne(Profile::class);
+}
+
+// With custom foreign key
+public function profile()
+{
+    return $this->hasOne(Profile::class, 'custom_user_id');
+}
+```
+
+### hasMany()
+
+Defines a one-to-many relationship (parent side).
+
+<ParamField path="related" type="string" required>
+  The fully qualified class name of the related model
+</ParamField>
+
+<ParamField path="foreignKey" type="string">
+  The foreign key on the related model (defaults to `{model}_id`)
+</ParamField>
+
+```php
+public function posts()
+{
+    return $this->hasMany(Post::class);
+}
+
+// With custom foreign key
+public function posts()
+{
+    return $this->hasMany(Post::class, 'author_id');
+}
+```
+
+### belongsTo()
+
+Defines the inverse of a one-to-one or one-to-many relationship.
+
+<ParamField path="related" type="string" required>
+  The fully qualified class name of the related model
+</ParamField>
+
+<ParamField path="foreignKey" type="string">
+  The foreign key on this model (defaults to `{related_model}_id`)
+</ParamField>
+
+```php
+public function user()
+{
+    return $this->belongsTo(User::class);
+}
+
+// With custom foreign key
+public function author()
+{
+    return $this->belongsTo(User::class, 'author_id');
+}
+```
+
+### belongsToMany()
+
+Defines a many-to-many relationship.
+
+<ParamField path="related" type="string" required>
+  The fully qualified class name of the related model
+</ParamField>
+
+<ParamField path="pivotTable" type="string">
+  The name of the pivot table (defaults to alphabetically ordered model names)
+</ParamField>
+
+```php
+public function tags()
+{
+    return $this->belongsToMany(Tag::class);
+}
+
+// With custom pivot table
+public function tags()
+{
+    return $this->belongsToMany(Tag::class, 'article_tags');
+}
+```
+
+## Complete Example
+
+Here's a comprehensive example with multiple relationship types:
+
+```php app/Models/User.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class User extends Model
+{
+    protected string $table = 'users';
+    
+    protected array $fillable = [
+        'name',
+        'email',
+        'password'
+    ];
+    
+    protected array $hidden = ['password'];
+    
+    // One-to-One: User has one Profile
+    public function profile()
+    {
+        return $this->hasOne(Profile::class);
+    }
+    
+    // One-to-Many: User has many Posts
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+    
+    // One-to-Many: User has many Comments
+    public function comments()
+    {
+        return $this->hasMany(Comment::class);
+    }
+}
+```
+
+```php app/Models/Post.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class Post extends Model
+{
+    protected string $table = 'posts';
+    
+    protected array $fillable = [
+        'user_id',
+        'title',
+        'content',
+        'status'
+    ];
+    
+    protected array $casts = [
+        'published' => 'bool'
+    ];
+    
+    // Many-to-One: Post belongs to User
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+    
+    // One-to-Many: Post has many Comments
+    public function comments()
+    {
+        return $this->hasMany(Comment::class);
+    }
+    
+    // Many-to-Many: Post has many Tags
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class);
+    }
+}
+```
+
+```php app/Models/Comment.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class Comment extends Model
+{
+    protected string $table = 'comments';
+    
+    protected array $fillable = [
+        'user_id',
+        'post_id',
+        'content'
+    ];
+    
+    // Many-to-One: Comment belongs to User
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+    
+    // Many-to-One: Comment belongs to Post
+    public function post()
+    {
+        return $this->belongsTo(Post::class);
+    }
+}
+```
+
+```php app/Models/Tag.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class Tag extends Model
+{
+    protected string $table = 'tags';
+    
+    protected array $fillable = ['name', 'slug'];
+    
+    // Many-to-Many: Tag has many Posts
+    public function posts()
+    {
+        return $this->belongsToMany(Post::class);
+    }
+}
+```
+
+### Using the Relationships
+
+```php
+// Get user with all relationships
+$user = User::find(1);
+
+// Get user's profile
+$profile = $user->profile()->get();
+echo $profile->bio;
+
+// Get user's posts
+$posts = $user->posts()->get();
+foreach ($posts as $post) {
+    echo $post->title;
+    
+    // Get post's tags
+    $tags = $post->tags()->get();
+    foreach ($tags as $tag) {
+        echo $tag->name;
+    }
+    
+    // Get post's comments
+    $comments = $post->comments()->get();
+    foreach ($comments as $comment) {
+        echo $comment->content;
+        
+        // Get comment author
+        $author = $comment->user()->get();
+        echo $author->name;
+    }
+}
+
+// Get user's comments
+$comments = $user->comments()->get();
+echo "Total comments: " . $comments->count();
+
+// Get all posts with a specific tag
+$tag = Tag::find(1);
+$taggedPosts = $tag->posts()->get();
+```
+
+## Collection Methods on Relationships
+
+Relationship results return `Collection` instances with useful methods:
+
+```php
+$user = User::find(1);
+$posts = $user->posts()->get();
+
+// Count
+$count = $posts->count();
+
+// First
+$latestPost = $posts->first();
+
+// Filter
+$published = $posts->filter(fn($post) => $post->status === 'published');
+
+// Map
+$titles = $posts->map(fn($post) => $post->title);
+
+// Sort
+$sortedPosts = $posts->sortByDesc('created_at');
+
+// Take
+$recentPosts = $posts->sortByDesc('created_at')->take(5);
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Descriptive Method Names">
+    Name relationship methods clearly based on what they return:
+
+    ```php
+    public function posts() // Returns multiple posts
+    public function user()  // Returns single user
+    public function profile() // Returns single profile
+    ```
+  </Step>
+
+  <Step title="Define Inverse Relationships">
+    Always define both sides of a relationship:
+
+    ```php
+    // User.php
+    public function posts() {
+        return $this->hasMany(Post::class);
+    }
+    
+    // Post.php
+    public function user() {
+        return $this->belongsTo(User::class);
+    }
+    ```
+  </Step>
+
+  <Step title="Use Type Hints">
+    Document return types for better IDE support:
+
+    ```php
+    /**
+     * @return HasMany
+     */
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+    ```
+  </Step>
+
+  <Step title="Follow Naming Conventions">
+    Use standard naming for pivot tables and foreign keys:
+    - Pivot tables: alphabetically ordered model names (`post_tag`)
+    - Foreign keys: `{model}_id` (e.g., `user_id`)
+  </Step>
+</Steps>
+
+## Migration Examples
+
+### One-to-Many Migration
+
+```php
+// Create posts table with user_id foreign key
+public function up(): void
+{
+    $this->getSchema()->create('posts', function ($table) {
+        $table->id();
+        $table->integer('user_id')->unsigned();
+        $table->string('title');
+        $table->text('content');
+        $table->timestamps();
+        
+        // Add index for better query performance
+        $table->index(['user_id']);
+    });
+}
+```
+
+### Many-to-Many Migration
+
+```php
+// Create pivot table for posts and tags
+public function up(): void
+{
+    $this->getSchema()->create('post_tag', function ($table) {
+        $table->id();
+        $table->integer('post_id')->unsigned();
+        $table->integer('tag_id')->unsigned();
+        $table->timestamps();
+        
+        // Composite index for unique pairs
+        $table->index(['post_id', 'tag_id']);
+    });
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Eloquent Models" icon="database" href="/database/eloquent-models">
+    Learn more about Eloquent model features
+  </Card>
+  <Card title="Query Builder" icon="code" href="/database/query-builder">
+    Understand the underlying Query Builder
+  </Card>
+</CardGroup>

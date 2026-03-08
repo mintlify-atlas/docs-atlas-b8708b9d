@@ -1,0 +1,425 @@
+---
+title: 'Engine'
+description: 'Core engine class that manages FFI integration with Rust libraries'
+---
+
+## Overview
+
+The `Engine` class is the heart of Lyger's performance optimization layer. It provides a singleton interface to Rust-powered FFI functions for heavy computations, caching, database operations, and the Always-Alive server.
+
+<Note>
+The Engine automatically falls back to PHP implementations when FFI is not available, ensuring compatibility across all environments.
+</Note>
+
+## getInstance
+
+Get the singleton instance of the Engine.
+
+```php
+public static function getInstance(): self
+```
+
+### Returns
+
+<ResponseField name="Engine" type="Engine">
+The singleton Engine instance
+</ResponseField>
+
+### Example
+
+```php
+use Lyger\Core\Engine;
+
+$engine = Engine::getInstance();
+```
+
+## Server Management
+
+### startServer
+
+Start the Always-Alive server with Rust-powered HTTP handling.
+
+```php
+public static function startServer(callable $routerHandler, int $port = 8000): void
+```
+
+<ParamField path="routerHandler" type="callable" required>
+Callback function that handles routing logic
+</ParamField>
+
+<ParamField path="port" type="int" default="8000">
+Port number to run the server on
+</ParamField>
+
+### Example
+
+```php
+use Lyger\Core\Engine;
+
+Engine::startServer(function($request) {
+    // Your routing logic
+    return Response::json(['status' => 'ok']);
+}, 8000);
+```
+
+### stopServer
+
+Stop the running server and clean up resources.
+
+```php
+public static function stopServer(): void
+```
+
+### Example
+
+```php
+Engine::stopServer();
+```
+
+## Basic Functions
+
+### helloWorld
+
+Get a hello world message from the Rust layer.
+
+```php
+public function helloWorld(): string
+```
+
+### Returns
+
+<ResponseField name="message" type="string">
+Hello message from Lyger
+</ResponseField>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+echo $engine->helloWorld();
+// Output: "Hello from Lyger v0.1"
+```
+
+### heavyComputation
+
+Perform CPU-intensive mathematical computations with Rust optimization.
+
+```php
+public function heavyComputation(int $iterations = 1000000): float
+```
+
+<ParamField path="iterations" type="int" default="1000000">
+Number of computational iterations to perform
+</ParamField>
+
+### Returns
+
+<ResponseField name="result" type="float">
+Computed result from the heavy computation
+</ResponseField>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$result = $engine->heavyComputation(5000000);
+echo "Computation result: {$result}";
+```
+
+### systemInfo
+
+Get system and framework information as JSON.
+
+```php
+public function systemInfo(): string
+```
+
+### Returns
+
+<ResponseField name="info" type="string">
+JSON string containing framework version, mode, status, and PHP version
+</ResponseField>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$info = $engine->systemInfo();
+$data = json_decode($info, true);
+
+// Example output:
+// {
+//   "framework": "Lyger v0.1",
+//   "mode": "Always-Alive",
+//   "status": "running",
+//   "php_version": "8.2.0"
+// }
+```
+
+## Cache Operations
+
+### cacheSet
+
+Store a value in the Rust-powered in-memory cache.
+
+```php
+public function cacheSet(string $key, string $value): void
+```
+
+<ParamField path="key" type="string" required>
+Cache key identifier
+</ParamField>
+
+<ParamField path="value" type="string" required>
+Value to store in cache
+</ParamField>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$engine->cacheSet('user:1', json_encode(['name' => 'John', 'email' => 'john@example.com']));
+```
+
+### cacheGet
+
+Retrieve a value from the cache.
+
+```php
+public function cacheGet(string $key): string
+```
+
+<ParamField path="key" type="string" required>
+Cache key to retrieve
+</ParamField>
+
+### Returns
+
+<ResponseField name="value" type="string">
+Cached value, or empty string if not found
+</ResponseField>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$userData = $engine->cacheGet('user:1');
+if ($userData) {
+    $user = json_decode($userData, true);
+    echo "User: " . $user['name'];
+}
+```
+
+### cacheDelete
+
+Remove a specific key from the cache.
+
+```php
+public function cacheDelete(string $key): void
+```
+
+<ParamField path="key" type="string" required>
+Cache key to delete
+</ParamField>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$engine->cacheDelete('user:1');
+```
+
+### cacheClear
+
+Clear all entries from the cache.
+
+```php
+public function cacheClear(): void
+```
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$engine->cacheClear();
+```
+
+### cacheSize
+
+Get the number of entries currently in the cache.
+
+```php
+public function cacheSize(): int
+```
+
+### Returns
+
+<ResponseField name="size" type="int">
+Number of cache entries
+</ResponseField>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$size = $engine->cacheSize();
+echo "Cache contains {$size} entries";
+```
+
+## Zero-Copy Database Operations
+
+### dbQuery
+
+Execute a database query and return a pointer to the result set.
+
+```php
+public function dbQuery(string $dsn, string $query): int
+```
+
+<ParamField path="dsn" type="string" required>
+Database connection string (e.g., "postgres://user:pass@localhost/db")
+</ParamField>
+
+<ParamField path="query" type="string" required>
+SQL query to execute
+</ParamField>
+
+### Returns
+
+<ResponseField name="pointer" type="int">
+Memory pointer to the result set (0 if query fails)
+</ResponseField>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$ptr = $engine->dbQuery(
+    'postgres://admin:password@localhost/mydb',
+    'SELECT * FROM users WHERE active = true'
+);
+```
+
+### jsonifyResult
+
+Convert a result set pointer to JSON format.
+
+```php
+public function jsonifyResult(int $ptr): string
+```
+
+<ParamField path="ptr" type="int" required>
+Result set pointer from dbQuery
+</ParamField>
+
+### Returns
+
+<ResponseField name="json" type="string">
+JSON string containing query results
+</ResponseField>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$ptr = $engine->dbQuery('postgres://...', 'SELECT * FROM users');
+$json = $engine->jsonifyResult($ptr);
+$users = json_decode($json, true);
+```
+
+### freeResult
+
+Free the memory allocated for a result set.
+
+```php
+public function freeResult(int $ptr): void
+```
+
+<ParamField path="ptr" type="int" required>
+Result set pointer to free
+</ParamField>
+
+<Note>
+Always call `freeResult()` after you're done with a result set to prevent memory leaks.
+</Note>
+
+### Example
+
+```php
+$engine = Engine::getInstance();
+$ptr = $engine->dbQuery('postgres://...', 'SELECT * FROM users');
+$json = $engine->jsonifyResult($ptr);
+$engine->freeResult($ptr); // Clean up memory
+```
+
+### dbQueryJson
+
+Convenience method that executes a query and returns JSON directly.
+
+```php
+public function dbQueryJson(string $dsn, string $query): string
+```
+
+<ParamField path="dsn" type="string" required>
+Database connection string
+</ParamField>
+
+<ParamField path="query" type="string" required>
+SQL query to execute
+</ParamField>
+
+### Returns
+
+<ResponseField name="json" type="string">
+JSON string containing query results
+</ResponseField>
+
+<Note>
+This method automatically handles memory cleanup, making it the recommended way to perform database queries.
+</Note>
+
+### Example
+
+```php
+use Lyger\Core\Engine;
+
+$engine = Engine::getInstance();
+$json = $engine->dbQueryJson(
+    'postgres://admin:password@localhost/mydb',
+    'SELECT id, name, email FROM users WHERE role = $1'
+);
+
+$users = json_decode($json, true);
+foreach ($users as $user) {
+    echo "{$user['name']} ({$user['email']})\n";
+}
+```
+
+## Complete Example
+
+```php
+use Lyger\Core\Engine;
+
+// Get engine instance
+$engine = Engine::getInstance();
+
+// Cache operations
+$engine->cacheSet('config:theme', 'dark');
+$theme = $engine->cacheGet('config:theme');
+
+// Heavy computation
+$result = $engine->heavyComputation(10000000);
+
+// Database query with zero-copy
+$users = $engine->dbQueryJson(
+    'postgres://admin:pass@localhost/mydb',
+    'SELECT * FROM users LIMIT 10'
+);
+
+// System information
+$info = json_decode($engine->systemInfo(), true);
+echo "Running: {$info['framework']}";
+
+// Cleanup cache when done
+$engine->cacheClear();
+```

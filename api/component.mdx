@@ -1,0 +1,640 @@
+---
+title: 'Base Component'
+description: 'Core component class for building reusable UI elements'
+---
+
+## Overview
+
+The base `Component` class in `Lyger\Components` provides a foundation for building reusable, view-based components with lifecycle hooks and property management.
+
+## Class: `Lyger\Components\Component`
+
+Abstract base class for creating components with automatic view rendering and property binding.
+
+### Basic Component
+
+```php
+use Lyger\Components\Component;
+
+class Alert extends Component
+{
+    protected string $view = 'components.alert';
+
+    protected function mount(): void
+    {
+        $this->setProperty('type', 'info');
+        $this->setProperty('message', '');
+    }
+
+    public function render(): string
+    {
+        return $this->renderView();
+    }
+}
+```
+
+## Lifecycle Methods
+
+### mount()
+
+Called when the component is instantiated. Override to initialize component state.
+
+```php
+protected function mount(): void
+```
+
+**Example:**
+
+```php
+protected function mount(): void
+{
+    $this->setProperty('isOpen', false);
+    $this->setProperty('items', []);
+}
+```
+
+### beforeRender()
+
+Called before each render. Use for pre-render logic or data preparation.
+
+```php
+protected function beforeRender(): void
+```
+
+**Example:**
+
+```php
+protected function beforeRender(): void
+{
+    // Refresh data before rendering
+    $this->setProperty('timestamp', time());
+}
+```
+
+### render()
+
+Renders the component and returns HTML string. Automatically calls `beforeRender()`.
+
+<ResponseField name="return" type="string">
+  The rendered HTML output
+</ResponseField>
+
+```php
+public function render(): string
+```
+
+## View Management
+
+### view()
+
+Sets the view template for the component.
+
+<ParamField path="view" type="string" required>
+  View name (e.g., 'components.button')
+</ParamField>
+
+<ResponseField name="return" type="Component">
+  Returns self for method chaining
+</ResponseField>
+
+```php
+public function view(string $view): self
+```
+
+**Example:**
+
+```php
+class Button extends Component
+{
+    public function __construct()
+    {
+        parent::__construct();
+        $this->view('components.button');
+    }
+}
+```
+
+### getView()
+
+Gets the current view name.
+
+<ResponseField name="return" type="string">
+  The view name
+</ResponseField>
+
+```php
+public function getView(): string
+```
+
+### renderView()
+
+Renders the view with component properties as variables.
+
+<ResponseField name="return" type="string">
+  Rendered HTML
+</ResponseField>
+
+```php
+protected function renderView(): string
+```
+
+<Note>
+Views are loaded from `resources/views/`. If the view file doesn't exist, `renderInline()` is called as fallback.
+</Note>
+
+### renderInline()
+
+Override this to provide inline HTML when no view file exists.
+
+```php
+protected function renderInline(): string
+{
+    return '<div class="alert">' . $this->properties['message'] . '</div>';
+}
+```
+
+### getDefaultViewName()
+
+Automatically generates a view name from the class name.
+
+```php
+protected function getDefaultViewName(): string
+```
+
+**Example:**
+
+```php
+// Class: UserCard
+// Returns: 'user-card'
+
+// Class: AlertMessage  
+// Returns: 'alert-message'
+```
+
+## Property Management
+
+### setProperty()
+
+Sets a component property.
+
+<ParamField path="key" type="string" required>
+  Property name
+</ParamField>
+
+<ParamField path="value" type="mixed" required>
+  Property value
+</ParamField>
+
+```php
+protected function setProperty(string $key, mixed $value): void
+```
+
+### getProperty()
+
+Gets a component property value.
+
+<ParamField path="key" type="string" required>
+  Property name
+</ParamField>
+
+<ResponseField name="return" type="mixed">
+  Property value or null if not set
+</ResponseField>
+
+```php
+protected function getProperty(string $key): mixed
+```
+
+### Magic Methods
+
+The component supports magic property access:
+
+```php
+// Set property
+$component->title = 'Hello';  // Same as setProperty('title', 'Hello')
+
+// Get property
+echo $component->title;  // Same as getProperty('title')
+
+// Check if property exists
+if (isset($component->title)) {
+    // Property is set
+}
+```
+
+**Example:**
+
+```php
+class Card extends Component
+{
+    protected function mount(): void
+    {
+        $this->title = 'Default Title';
+        $this->content = '';
+    }
+
+    public function updateTitle(string $newTitle): void
+    {
+        $this->title = $newTitle;  // Tracked in updates
+    }
+}
+```
+
+## Method Invocation
+
+### call()
+
+Invokes a method on the component with parameters.
+
+<ParamField path="method" type="string" required>
+  Method name to call
+</ParamField>
+
+<ParamField path="params" type="array">
+  Method parameters
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Result containing 'success', 'data', 'updates', or 'error'
+</ResponseField>
+
+```php
+public function call(string $method, array $params = []): array
+```
+
+**Example:**
+
+```php
+$result = $component->call('updateTitle', ['New Title']);
+// Returns:
+// [
+//     'success' => true,
+//     'data' => null,
+//     'updates' => ['title' => 'New Title']
+// ]
+```
+
+## Data Export
+
+### toArray()
+
+Exports component data as an array.
+
+<ResponseField name="return" type="array">
+  Array with 'properties' and 'view' keys
+</ResponseField>
+
+```php
+public function toArray(): array
+```
+
+**Example:**
+
+```php
+$data = $component->toArray();
+// Returns:
+// [
+//     'properties' => ['title' => 'Hello', 'content' => '...'],
+//     'view' => '<div>...</div>'
+// ]
+```
+
+### refresh()
+
+Refreshes and returns component data.
+
+<ResponseField name="return" type="array">
+  Fresh component data
+</ResponseField>
+
+```php
+public function refresh(): array
+```
+
+## Events
+
+### emit()
+
+Emits an event with optional data payload.
+
+<ParamField path="event" type="string" required>
+  Event name
+</ParamField>
+
+<ParamField path="data" type="mixed">
+  Event data
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Event descriptor array
+</ResponseField>
+
+```php
+protected function emit(string $event, mixed $data = null): array
+```
+
+**Example:**
+
+```php
+public function deleteItem(int $id)
+{
+    // Delete logic...
+    return $this->emit('item-deleted', ['id' => $id]);
+}
+```
+
+## Validation
+
+### validate()
+
+Validates component properties against rules.
+
+<ParamField path="rules" type="array" required>
+  Validation rules
+</ParamField>
+
+<ParamField path="messages" type="array">
+  Custom validation messages
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Validated data
+</ResponseField>
+
+<ResponseField name="throws" type="ValidationException">
+  Thrown when validation fails
+</ResponseField>
+
+```php
+protected function validate(array $rules, array $messages = []): array
+```
+
+**Example:**
+
+```php
+public function submitForm()
+{
+    try {
+        $validated = $this->validate([
+            'email' => 'required|email',
+            'name' => 'required|min:3',
+        ]);
+
+        // Process validated data...
+        return $this->emit('form-submitted', $validated);
+    } catch (ValidationException $e) {
+        return ['errors' => $e->getErrors()];
+    }
+}
+```
+
+## Component Manager
+
+### Lyger\Components\ComponentManager
+
+Manages component registration and instantiation.
+
+#### register()
+
+Registers a component class with a name.
+
+<ParamField path="name" type="string" required>
+  Component name
+</ParamField>
+
+<ParamField path="class" type="string" required>
+  Fully qualified class name
+</ParamField>
+
+```php
+ComponentManager::register('alert', Alert::class);
+ComponentManager::register('button', Button::class);
+```
+
+#### make()
+
+Creates a component instance by name.
+
+<ParamField path="name" type="string" required>
+  Registered component name
+</ParamField>
+
+<ResponseField name="return" type="Component">
+  Component instance
+</ResponseField>
+
+<ResponseField name="throws" type="RuntimeException">
+  If component is not registered
+</ResponseField>
+
+```php
+$alert = ComponentManager::make('alert');
+```
+
+#### getRegistered()
+
+Gets all registered components.
+
+<ResponseField name="return" type="array">
+  Array of registered component names and classes
+</ResponseField>
+
+```php
+$components = ComponentManager::getRegistered();
+// Returns: ['alert' => Alert::class, 'button' => Button::class]
+```
+
+## Slot Class
+
+### Lyger\Components\Slot
+
+Represents a content slot within a component.
+
+```php
+$slot = new Slot('<p>Default content</p>');
+$content = $slot->getContent();
+```
+
+## LiveHandler
+
+### Lyger\Components\LiveHandler
+
+Handles AJAX requests for live component updates.
+
+#### handle()
+
+Processes incoming AJAX requests and returns component response.
+
+<ParamField path="request" type="array" required>
+  Request data containing 'component', 'method', 'params', 'properties'
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Component response with method result
+</ResponseField>
+
+```php
+$response = LiveHandler::handle([
+    'component' => 'alert',
+    'method' => 'close',
+    'params' => [],
+    'properties' => ['message' => 'Test'],
+]);
+```
+
+**Request Structure:**
+
+```php
+[
+    'component' => 'component-name',
+    'method' => 'methodName',
+    'params' => ['param1', 'param2'],
+    'properties' => ['prop1' => 'value1'],
+]
+```
+
+## Complete Example
+
+```php
+use Lyger\Components\Component;
+use Lyger\Components\ComponentManager;
+
+class Dropdown extends Component
+{
+    protected string $view = 'components.dropdown';
+
+    protected function mount(): void
+    {
+        $this->setProperty('isOpen', false);
+        $this->setProperty('items', []);
+        $this->setProperty('selected', null);
+    }
+
+    protected function beforeRender(): void
+    {
+        // Ensure items is always an array
+        if (!is_array($this->getProperty('items'))) {
+            $this->setProperty('items', []);
+        }
+    }
+
+    public function toggle(): array
+    {
+        $this->isOpen = !$this->isOpen;
+        return $this->emit('dropdown-toggled', ['isOpen' => $this->isOpen]);
+    }
+
+    public function select(string $value): array
+    {
+        $this->selected = $value;
+        $this->isOpen = false;
+
+        return $this->emit('item-selected', ['value' => $value]);
+    }
+
+    public function setItems(array $items): void
+    {
+        $validated = $this->validate([
+            'items' => 'required|array',
+            'items.*.label' => 'required|string',
+            'items.*.value' => 'required',
+        ]);
+
+        $this->items = $validated['items'];
+    }
+
+    public function render(): string
+    {
+        return $this->renderView();
+    }
+}
+
+// Register the component
+ComponentManager::register('dropdown', Dropdown::class);
+
+// Create and use the component
+$dropdown = ComponentManager::make('dropdown');
+$dropdown->setItems([
+    ['label' => 'Option 1', 'value' => '1'],
+    ['label' => 'Option 2', 'value' => '2'],
+]);
+
+echo $dropdown->render();
+```
+
+## View Template Example
+
+```php
+<!-- resources/views/components/dropdown.php -->
+<div class="dropdown <?= $isOpen ? 'open' : '' ?>">
+    <button onclick="component.call('toggle')">
+        <?= $selected ? $selected : 'Select...' ?>
+    </button>
+
+    <?php if ($isOpen): ?>
+        <ul class="dropdown-menu">
+            <?php foreach ($items as $item): ?>
+                <li onclick="component.call('select', ['<?= $item['value'] ?>'])">
+                    <?= $item['label'] ?>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    <?php endif; ?>
+</div>
+```
+
+## Tabs Example
+
+<Tabs>
+  <Tab title="Modal Component">
+    ```php
+    class Modal extends Component
+    {
+        protected string $view = 'components.modal';
+
+        protected function mount(): void
+        {
+            $this->isOpen = false;
+            $this->title = '';
+            $this->content = '';
+        }
+
+        public function open(): void
+        {
+            $this->isOpen = true;
+        }
+
+        public function close(): void
+        {
+            $this->isOpen = false;
+        }
+    }
+    ```
+  </Tab>
+  <Tab title="Card Component">
+    ```php
+    class Card extends Component
+    {
+        protected string $view = 'components.card';
+
+        protected function mount(): void
+        {
+            $this->title = 'Card Title';
+            $this->body = '';
+            $this->footer = null;
+        }
+
+        protected function renderInline(): string
+        {
+            return <<<HTML
+            <div class="card">
+                <h3>{$this->title}</h3>
+                <div>{$this->body}</div>
+                {$this->footer ? "<footer>{$this->footer}</footer>" : ''}
+            </div>
+            HTML;
+        }
+    }
+    ```
+  </Tab>
+</Tabs>

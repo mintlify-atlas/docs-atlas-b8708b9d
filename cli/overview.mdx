@@ -1,0 +1,155 @@
+---
+title: CLI Overview
+description: Introduction to the Lyger Framework command-line interface (rawr)
+icon: terminal
+---
+
+The Lyger Framework includes a powerful command-line interface tool called **rawr** that helps you quickly scaffold and manage your application.
+
+## Getting Started
+
+The CLI tool is accessed through the `rawr` file in your project root:
+
+```bash
+php rawr <command> [arguments] [options]
+```
+
+<Info>
+The rawr CLI is designed for rapid development with zero configuration required. All commands work out of the box.
+</Info>
+
+## Available Commands
+
+### Server Management
+
+<CardGroup cols={2}>
+  <Card title="serve" icon="server" href="/cli/serve">
+    Start the development server with PHP built-in server
+  </Card>
+  <Card title="serve --port" icon="network-wired">
+    Start server on custom port (default: 8000)
+  </Card>
+</CardGroup>
+
+### Code Generation
+
+<CardGroup cols={2}>
+  <Card title="make:controller" icon="file-code" href="/cli/make-controller">
+    Create a new controller class
+  </Card>
+  <Card title="make:model" icon="database" href="/cli/make-model">
+    Create a new model class
+  </Card>
+  <Card title="make:migration" icon="table" href="/cli/make-migration">
+    Create a new database migration
+  </Card>
+  <Card title="make:auth" icon="lock" href="/cli/make-auth">
+    Generate authentication scaffolding
+  </Card>
+  <Card title="make:dash" icon="gauge" href="/cli/make-dash">
+    Create an admin dashboard controller
+  </Card>
+</CardGroup>
+
+### Database Management
+
+<CardGroup cols={2}>
+  <Card title="migrate" icon="arrow-up" href="/cli/migrate">
+    Run pending database migrations
+  </Card>
+  <Card title="migrate:rollback" icon="arrow-rotate-left">
+    Rollback the last migration batch
+  </Card>
+  <Card title="migrate:status" icon="list-check">
+    Show migration status
+  </Card>
+</CardGroup>
+
+## Command Structure
+
+All Lyger CLI commands follow a consistent structure:
+
+```bash
+php rawr <command> <name> [--options]
+```
+
+<ParamField path="command" type="string" required>
+  The action to perform (e.g., `serve`, `make:controller`, `migrate`)
+</ParamField>
+
+<ParamField path="name" type="string">
+  The name of the resource to create (for make commands)
+</ParamField>
+
+<ParamField path="options" type="flags">
+  Additional flags to modify command behavior (e.g., `--migration`, `--port=8080`)
+</ParamField>
+
+## Common Options
+
+### Port Configuration
+
+Many commands support custom port configuration:
+
+```bash
+php rawr serve --port=8080
+```
+
+### Migration Flag
+
+When creating models, you can automatically generate a migration:
+
+```bash
+php rawr make:model User --migration
+```
+
+## Quick Examples
+
+<CodeGroup>
+
+```bash Start Server
+php rawr serve
+```
+
+```bash Create Controller
+php rawr make:controller UserController
+```
+
+```bash Create Model with Migration
+php rawr make:model Product --migration
+```
+
+```bash Run Migrations
+php rawr migrate
+```
+
+</CodeGroup>
+
+## Help Command
+
+To see all available commands, run rawr without arguments:
+
+```bash
+php rawr
+```
+
+<Note>
+This displays the help menu with a complete list of commands and their descriptions.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Server Commands" icon="server" href="/cli/serve">
+    Learn how to start and configure the development server
+  </Card>
+  <Card title="Code Generation" icon="wand-magic-sparkles" href="/cli/make-controller">
+    Explore scaffolding commands for rapid development
+  </Card>
+  <Card title="Database Migrations" icon="database" href="/cli/migrate">
+    Manage your database schema with migrations
+  </Card>
+  <Card title="Authentication" icon="shield-halved" href="/cli/make-auth">
+    Set up authentication in minutes
+  </Card>
+</CardGroup>

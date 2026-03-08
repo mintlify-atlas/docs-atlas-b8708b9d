@@ -1,0 +1,526 @@
+---
+title: 'Middleware'
+description: 'Filter and process HTTP requests with middleware in Lyger Framework'
+---
+
+## Introduction
+
+Middleware provides a convenient mechanism to filter and process HTTP requests entering your application. Lyger's middleware system is inspired by Laravel and allows you to chain multiple middleware handlers together.
+
+## Middleware Concept
+
+Middleware acts as a bridge between a request and a response. Each middleware can:
+
+- Inspect the incoming request
+- Modify the request
+- Pass control to the next middleware
+- Return a response early (short-circuit)
+- Modify the response after the handler executes
+
+```php
+Request → Middleware 1 → Middleware 2 → Handler → Response
+```
+
+## Creating Middleware
+
+All middleware must extend the `Middleware` base class and implement the `handle` method:
+
+```php
+namespace App\Middleware;
+
+use Lyger\Middleware\Middleware;
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class CustomMiddleware extends Middleware
+{
+    public function handle(Request $request, callable $next): Response
+    {
+        // Do something before the request is handled
+        
+        $response = $next($request);
+        
+        // Do something after the response is created
+        
+        return $response;
+    }
+}
+```
+
+<Note>
+The `$next` callable represents the next middleware in the chain or the final route handler.
+</Note>
+
+## Built-in Middleware
+
+Lyger includes several built-in middleware classes for common use cases:
+
+### CORS Middleware
+
+Handle Cross-Origin Resource Sharing (CORS) headers:
+
+```php
+use Lyger\Middleware\CorsMiddleware;
+
+$cors = new CorsMiddleware([
+    'allowed_origins' => ['https://example.com', 'https://app.example.com'],
+    'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    'allowed_headers' => ['Content-Type', 'Authorization', 'X-Requested-With'],
+    'exposed_headers' => ['X-Custom-Header'],
+    'max_age' => 86400,
+    'supports_credentials' => true,
+]);
+```
+
+**Configuration Options:**
+
+- `allowed_origins`: Array of allowed origins or `['*']` for all
+- `allowed_methods`: HTTP methods to allow
+- `allowed_headers`: Request headers to allow
+- `exposed_headers`: Response headers to expose
+- `max_age`: Preflight cache duration in seconds
+- `supports_credentials`: Whether to support credentials
+
+<Tabs>
+  <Tab title="Allow All Origins">
+    ```php
+    $cors = new CorsMiddleware([
+        'allowed_origins' => ['*'],
+    ]);
+    ```
+  </Tab>
+  <Tab title="Specific Origins">
+    ```php
+    $cors = new CorsMiddleware([
+        'allowed_origins' => [
+            'https://example.com',
+            'https://api.example.com'
+        ],
+    ]);
+    ```
+  </Tab>
+  <Tab title="With Credentials">
+    ```php
+    $cors = new CorsMiddleware([
+        'allowed_origins' => ['https://app.example.com'],
+        'supports_credentials' => true,
+        'allowed_headers' => ['Content-Type', 'Authorization'],
+    ]);
+    ```
+  </Tab>
+</Tabs>
+
+### Rate Limiting Middleware
+
+Prevent abuse by limiting the number of requests:
+
+```php
+use Lyger\Middleware\RateLimitMiddleware;
+
+// Allow 60 requests per 60 seconds
+$rateLimiter = new RateLimitMiddleware(60, 60);
+
+// Allow 100 requests per 5 minutes
+$rateLimiter = new RateLimitMiddleware(100, 300);
+```
+
+The rate limiter automatically adds headers to responses:
+
+- `X-RateLimit-Limit`: Maximum attempts allowed
+- `X-RateLimit-Remaining`: Remaining attempts
+- `X-RateLimit-Reset`: Unix timestamp when the limit resets
+- `Retry-After`: Seconds until retry (when limit exceeded)
+
+When the limit is exceeded, it returns a 429 response:
+
+```json
+{
+  "error": "Too Many Requests",
+  "message": "Rate limit exceeded. Try again later.",
+  "retry_after": 45
+}
+```
+
+<Note>
+The rate limiter uses IP address and URI as the signature for tracking requests.
+</Note>
+
+### Authentication Middleware
+
+Simple token-based authentication:
+
+```php
+use Lyger\Middleware\AuthMiddleware;
+
+// Check if Authorization header exists
+$auth = new AuthMiddleware();
+
+// Validate against a specific token
+$auth = new AuthMiddleware('your-secret-token-here');
+
+// Custom header name
+$auth = new AuthMiddleware('token', 'X-API-Key');
+```
+
+The middleware expects the token in the `Authorization` header (or custom header):
+
+```bash
+# Bearer token format
+Authorization: Bearer your-secret-token-here
+
+# Or direct token
+Authorization: your-secret-token-here
+```
+
+Unauthorized responses return 401:
+
+```json
+{
+  "error": "Unauthorized",
+  "message": "Authentication token required"
+}
+```
+
+### JSON Parser Middleware
+
+Automatically parse JSON request bodies:
+
+```php
+use Lyger\Middleware\JsonParserMiddleware;
+
+$jsonParser = new JsonParserMiddleware();
+```
+
+This middleware:
+- Detects `application/json` content type
+- Parses the JSON body
+- Makes data available via `$request->input()`
+
+<Warning>
+Without this middleware, JSON request bodies won't be automatically parsed.
+</Warning>
+
+### Logging Middleware
+
+Log all HTTP requests and responses:
+
+```php
+use Lyger\Middleware\LoggingMiddleware;
+
+// Use default console logging
+$logger = new LoggingMiddleware();
+
+// Custom logger function
+$logger = new LoggingMiddleware(function ($request, $response) {
+    $log = sprintf(
+        "[%s] %s %s - %d - %s",
+        date('Y-m-d H:i:s'),
+        $request->method(),
+        $request->uri(),
+        $response->getStatusCode(),
+        $request->ip()
+    );
+    
+    file_put_contents('/var/log/app.log', $log . PHP_EOL, FILE_APPEND);
+});
+```
+
+Default output format:
+```
+[2026-03-08 10:15:30] GET /api/users - 200 - 192.168.1.1
+[2026-03-08 10:15:31] POST /api/users - 201 - 192.168.1.1
+[2026-03-08 10:15:32] GET /api/users/123 - 404 - 192.168.1.2
+```
+
+## Chaining Middleware
+
+Middleware can be chained together using the `setNext()` method:
+
+```php
+use Lyger\Middleware\CorsMiddleware;
+use Lyger\Middleware\RateLimitMiddleware;
+use Lyger\Middleware\AuthMiddleware;
+use Lyger\Middleware\LoggingMiddleware;
+
+$cors = new CorsMiddleware(['allowed_origins' => ['*']]);
+$rateLimit = new RateLimitMiddleware(100, 60);
+$auth = new AuthMiddleware('secret-token');
+$logger = new LoggingMiddleware();
+
+// Chain them together
+$cors->setNext($rateLimit)
+     ->setNext($auth)
+     ->setNext($logger);
+
+// Process a request through the chain
+$response = $cors->process($request, function ($req) use ($router) {
+    return $router->dispatch($req);
+});
+```
+
+The request flows through the middleware chain:
+
+```
+Request
+  ↓
+CORS Middleware (add CORS headers)
+  ↓
+Rate Limit Middleware (check request count)
+  ↓
+Auth Middleware (verify token)
+  ↓
+Logging Middleware (log request)
+  ↓
+Route Handler
+  ↓
+Logging Middleware (log response)
+  ↓
+Auth Middleware (pass through)
+  ↓
+Rate Limit Middleware (add rate headers)
+  ↓
+CORS Middleware (finalize CORS)
+  ↓
+Response
+```
+
+## Creating Custom Middleware
+
+Here are some practical examples of custom middleware:
+
+<CodeGroup>
+
+```php API Version Middleware
+namespace App\Middleware;
+
+use Lyger\Middleware\Middleware;
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class ApiVersionMiddleware extends Middleware
+{
+    private array $supportedVersions = ['v1', 'v2'];
+    
+    public function handle(Request $request, callable $next): Response
+    {
+        $version = $request->header('X-API-Version', 'v1');
+        
+        if (!in_array($version, $this->supportedVersions)) {
+            return Response::error(
+                "Unsupported API version: {$version}",
+                400
+            );
+        }
+        
+        // Store version in request for later use
+        $request->apiVersion = $version;
+        
+        return $next($request);
+    }
+}
+```
+
+```php Request Timing Middleware
+namespace App\Middleware;
+
+use Lyger\Middleware\Middleware;
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class TimingMiddleware extends Middleware
+{
+    public function handle(Request $request, callable $next): Response
+    {
+        $startTime = microtime(true);
+        
+        $response = $next($request);
+        
+        $duration = microtime(true) - $startTime;
+        $durationMs = round($duration * 1000, 2);
+        
+        $response->setHeader('X-Response-Time', "{$durationMs}ms");
+        
+        return $response;
+    }
+}
+```
+
+```php Content Security Policy
+namespace App\Middleware;
+
+use Lyger\Middleware\Middleware;
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class SecurityHeadersMiddleware extends Middleware
+{
+    public function handle(Request $request, callable $next): Response
+    {
+        $response = $next($request);
+        
+        $response->setHeader('X-Frame-Options', 'DENY');
+        $response->setHeader('X-Content-Type-Options', 'nosniff');
+        $response->setHeader('X-XSS-Protection', '1; mode=block');
+        $response->setHeader(
+            'Content-Security-Policy',
+            "default-src 'self'"
+        );
+        
+        return $response;
+    }
+}
+```
+
+```php Request ID Middleware
+namespace App\Middleware;
+
+use Lyger\Middleware\Middleware;
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class RequestIdMiddleware extends Middleware
+{
+    public function handle(Request $request, callable $next): Response
+    {
+        $requestId = $request->header('X-Request-ID') 
+            ?? bin2hex(random_bytes(16));
+        
+        $response = $next($request);
+        
+        $response->setHeader('X-Request-ID', $requestId);
+        
+        return $response;
+    }
+}
+```
+
+</CodeGroup>
+
+## Short-Circuiting
+
+Middleware can return a response early without calling the next middleware:
+
+```php
+namespace App\Middleware;
+
+use Lyger\Middleware\Middleware;
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class MaintenanceMiddleware extends Middleware
+{
+    private bool $maintenanceMode;
+    
+    public function __construct(bool $maintenanceMode = false)
+    {
+        $this->maintenanceMode = $maintenanceMode;
+    }
+    
+    public function handle(Request $request, callable $next): Response
+    {
+        if ($this->maintenanceMode) {
+            // Don't call $next() - return immediately
+            return Response::json([
+                'error' => 'Service Unavailable',
+                'message' => 'System is under maintenance'
+            ], 503);
+        }
+        
+        return $next($request);
+    }
+}
+```
+
+## Conditional Middleware
+
+Apply middleware based on conditions:
+
+```php
+namespace App\Middleware;
+
+use Lyger\Middleware\Middleware;
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class AdminOnlyMiddleware extends Middleware
+{
+    public function handle(Request $request, callable $next): Response
+    {
+        $userRole = $request->header('X-User-Role', 'guest');
+        
+        if ($userRole !== 'admin') {
+            return Response::error('Forbidden', 403);
+        }
+        
+        return $next($request);
+    }
+}
+
+class DevelopmentOnlyMiddleware extends Middleware
+{
+    public function handle(Request $request, callable $next): Response
+    {
+        if ($_ENV['APP_ENV'] !== 'development') {
+            return Response::error('Not Found', 404);
+        }
+        
+        return $next($request);
+    }
+}
+```
+
+## Middleware Best Practices
+
+<Note>
+**Keep middleware focused**: Each middleware should handle one specific concern (authentication, logging, etc.)
+</Note>
+
+<Note>
+**Order matters**: Chain middleware in logical order. For example, rate limiting should come before authentication to protect auth endpoints.
+</Note>
+
+<Note>
+**Performance**: Avoid heavy operations in middleware that runs on every request. Consider caching when possible.
+</Note>
+
+<Warning>
+**Always call `$next($request)`** unless you intentionally want to short-circuit the request. Forgetting this will break your application.
+</Warning>
+
+## Common Middleware Stack
+
+A typical production middleware stack might look like:
+
+```php
+use Lyger\Middleware\CorsMiddleware;
+use Lyger\Middleware\RateLimitMiddleware;
+use Lyger\Middleware\JsonParserMiddleware;
+use Lyger\Middleware\AuthMiddleware;
+use Lyger\Middleware\LoggingMiddleware;
+
+// Public routes - no auth required
+$publicStack = new CorsMiddleware(['allowed_origins' => ['*']]);
+$publicStack
+    ->setNext(new RateLimitMiddleware(100, 60))
+    ->setNext(new JsonParserMiddleware())
+    ->setNext(new LoggingMiddleware());
+
+// Protected routes - auth required
+$protectedStack = new CorsMiddleware(['allowed_origins' => ['*']]);
+$protectedStack
+    ->setNext(new RateLimitMiddleware(1000, 60))
+    ->setNext(new JsonParserMiddleware())
+    ->setNext(new AuthMiddleware($_ENV['API_TOKEN']))
+    ->setNext(new LoggingMiddleware());
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Basic Routing" icon="route" href="/routing/basic-routing">
+    Learn about defining routes
+  </Card>
+  <Card title="Route Parameters" icon="brackets-curly" href="/routing/route-parameters">
+    Capture dynamic URL segments
+  </Card>
+</CardGroup>

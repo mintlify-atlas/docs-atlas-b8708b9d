@@ -1,0 +1,547 @@
+---
+title: 'Livewire Components'
+description: 'Build reactive server-side components with Lyger Livewire'
+icon: 'bolt'
+---
+
+## Overview
+
+Lyger Livewire provides a server-side reactive component system that allows you to build dynamic interfaces without writing JavaScript. Components automatically handle updates, events, and state management.
+
+<Note>
+Lyger Livewire is inspired by Laravel Livewire but built specifically for the Lyger framework with full integration support.
+</Note>
+
+## Creating Components
+
+<Steps>
+  <Step title="Create Component Class">
+    Extend the `Lyger\Livewire\Component` base class and implement the `render()` method:
+
+    ```php
+    <?php
+
+    namespace App\Livewire;
+
+    use Lyger\Livewire\Component;
+
+    class Counter extends Component
+    {
+        public int $count = 0;
+
+        public function increment()
+        {
+            $this->count++;
+        }
+
+        public function decrement()
+        {
+            $this->count--;
+        }
+
+        public function render(): string
+        {
+            return <<<HTML
+            <div>
+                <h2>Counter: {$this->count}</h2>
+                <button wire:click="increment">+</button>
+                <button wire:click="decrement">-</button>
+            </div>
+            HTML;
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Register Component">
+    Register your component with the Livewire manager:
+
+    ```php
+    use Lyger\Livewire\Manager;
+    use App\Livewire\Counter;
+
+    Manager::register('counter', Counter::class);
+    ```
+  </Step>
+
+  <Step title="Use in Views">
+    Include the component in your views using the component name:
+
+    ```html
+    <div id="app">
+        @livewire('counter')
+    </div>
+    ```
+  </Step>
+</Steps>
+
+## Component Lifecycle
+
+### Mount Method
+
+The `mount()` method is called when a component is first created:
+
+```php
+class UserProfile extends Component
+{
+    public string $name = '';
+    public string $email = '';
+
+    public function mount(int $userId): void
+    {
+        $user = User::find($userId);
+        $this->name = $user->name;
+        $this->email = $user->email;
+    }
+
+    public function render(): string
+    {
+        return Blade::render('profile.user', [
+            'name' => $this->name,
+            'email' => $this->email,
+        ]);
+    }
+}
+```
+
+### Public Properties
+
+All public properties are automatically tracked and synced with the frontend:
+
+```php
+class SearchForm extends Component
+{
+    public string $query = '';
+    public array $results = [];
+    public bool $loading = false;
+
+    public function search()
+    {
+        $this->loading = true;
+        $this->results = $this->performSearch($this->query);
+        $this->loading = false;
+    }
+
+    // Properties are automatically available in the view
+    public function render(): string
+    {
+        return Blade::render('search.form', $this->getPublicProperties());
+    }
+}
+```
+
+## Data Binding
+
+Properties are automatically synchronized between the server and client:
+
+```php
+class ContactForm extends Component
+{
+    public string $name = '';
+    public string $email = '';
+    public string $message = '';
+
+    public function submit()
+    {
+        // Validate and process form
+        $this->validate([
+            'name' => ['required', 'min:3'],
+            'email' => ['required', 'email'],
+            'message' => ['required', 'min:10'],
+        ]);
+
+        // Send email or save to database
+        $this->reset('name', 'email', 'message');
+    }
+
+    public function render(): string
+    {
+        return <<<HTML
+        <form wire:submit="submit">
+            <input type="text" wire:model="name" placeholder="Name">
+            <input type="email" wire:model="email" placeholder="Email">
+            <textarea wire:model="message" placeholder="Message"></textarea>
+            <button type="submit">Send</button>
+        </form>
+        HTML;
+    }
+}
+```
+
+## Validation
+
+Components include built-in validation support:
+
+```php
+class RegistrationForm extends Component
+{
+    public string $username = '';
+    public string $password = '';
+    public array $errors = [];
+
+    public function register()
+    {
+        try {
+            $validated = $this->validate([
+                'username' => ['required', 'min:3', 'max:20'],
+                'password' => ['required', 'min:8'],
+            ], [
+                'username.required' => 'Username is required',
+                'password.min' => 'Password must be at least 8 characters',
+            ]);
+
+            // Create user account
+            User::create($validated);
+
+            return $this->redirect('/dashboard');
+        } catch (ValidationException $e) {
+            $this->errors = $e->getErrors();
+        }
+    }
+
+    public function render(): string
+    {
+        return Blade::render('auth.register', [
+            'username' => $this->username,
+            'password' => $this->password,
+            'errors' => $this->errors,
+        ]);
+    }
+}
+```
+
+### Error Handling
+
+```php
+protected function addError(string $field, string $message): void
+{
+    $this->errors[$field] = $message;
+}
+```
+
+## Events
+
+<Tabs>
+  <Tab title="Emit Events">
+    Emit events to communicate between components:
+
+    ```php
+    class PostCreator extends Component
+    {
+        public string $title = '';
+        public string $content = '';
+
+        public function createPost()
+        {
+            $post = Post::create([
+                'title' => $this->title,
+                'content' => $this->content,
+            ]);
+
+            // Emit event to notify other components
+            return $this->emit('postCreated', $post->id);
+        }
+
+        public function render(): string
+        {
+            return Blade::render('posts.create');
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Emit to Parent">
+    Use `emitUp()` to send events to parent components:
+
+    ```php
+    class ChildComponent extends Component
+    {
+        public function notifyParent()
+        {
+            return $this->emitUp('childUpdated', [
+                'timestamp' => time(),
+            ]);
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Browser Events">
+    Dispatch browser-level events:
+
+    ```php
+    class Notification extends Component
+    {
+        public function showAlert()
+        {
+            return $this->dispatchBrowserEvent('alert', [
+                'message' => 'Operation completed!',
+                'type' => 'success',
+            ]);
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Component Traits
+
+Lyger Livewire includes reusable traits for common functionality:
+
+### WithEvents
+
+```php
+use Lyger\Livewire\Component;
+use Lyger\Livewire\WithEvents;
+
+class EventDrivenComponent extends Component
+{
+    use WithEvents;
+
+    protected function mount(): void
+    {
+        $this->listen('userUpdated', function($userId) {
+            $this->refreshUserData($userId);
+        });
+    }
+}
+```
+
+### WithFileUploads
+
+```php
+use Lyger\Livewire\WithFileUploads;
+
+class FileUploader extends Component
+{
+    use WithFileUploads;
+
+    public function handleUpload()
+    {
+        $this->validateFile('document', ['required', 'max:2048']);
+        
+        $file = $this->request->file('document');
+        $path = $this->upload('document', $file);
+        
+        return $this->redirect("/files?uploaded={$path}");
+    }
+}
+```
+
+### WithPagination
+
+```php
+use Lyger\Livewire\WithPagination;
+
+class UserList extends Component
+{
+    use WithPagination;
+
+    protected int $perPage = 10;
+
+    public function render(): string
+    {
+        $users = User::paginate($this->perPage, $this->page);
+        
+        return Blade::render('users.list', [
+            'users' => $users,
+            'pagination' => $this->pagination(),
+        ]);
+    }
+}
+```
+
+### WithSearch
+
+```php
+use Lyger\Livewire\WithSearch;
+
+class SearchableTable extends Component
+{
+    use WithSearch;
+
+    protected array $searchable = ['name', 'email', 'description'];
+
+    public function render(): string
+    {
+        $query = User::query();
+        $results = $this->applySearch($query)->get();
+        
+        return Blade::render('users.searchable', [
+            'results' => $results,
+            'search' => $this->search,
+        ]);
+    }
+}
+```
+
+## Actions and Methods
+
+### Calling Methods
+
+Component methods can be called from the frontend:
+
+```php
+class TodoList extends Component
+{
+    public array $todos = [];
+
+    public function addTodo(string $title)
+    {
+        $this->todos[] = [
+            'id' => uniqid(),
+            'title' => $title,
+            'completed' => false,
+        ];
+    }
+
+    public function toggleTodo(string $id)
+    {
+        foreach ($this->todos as &$todo) {
+            if ($todo['id'] === $id) {
+                $todo['completed'] = !$todo['completed'];
+            }
+        }
+    }
+
+    public function deleteTodo(string $id)
+    {
+        $this->todos = array_filter($this->todos, fn($t) => $t['id'] !== $id);
+    }
+}
+```
+
+### Redirects
+
+```php
+protected function redirect(string $url): array
+{
+    return ['redirect' => $url];
+}
+
+protected function redirectToRoute(string $route, array $params = []): array
+{
+    $url = $route;
+    foreach ($params as $key => $value) {
+        $url = str_replace("{{$key}}", $value, $url);
+    }
+    return $this->redirect($url);
+}
+```
+
+Example usage:
+
+```php
+public function saveAndRedirect()
+{
+    $this->save();
+    return $this->redirect('/dashboard');
+}
+
+public function viewUser(int $userId)
+{
+    return $this->redirectToRoute('/users/{id}', ['id' => $userId]);
+}
+```
+
+## Authentication
+
+Components have built-in authentication helpers:
+
+```php
+class ProtectedComponent extends Component
+{
+    public function mount(): void
+    {
+        if (!$this->isAuthenticated()) {
+            return $this->redirect('/login');
+        }
+    }
+
+    public function performAction()
+    {
+        $user = $this->user();
+        
+        if (!$user) {
+            $this->addError('auth', 'You must be logged in');
+            return;
+        }
+
+        // User data available in $user array
+        $userId = $user['id'];
+        $userName = $user['name'];
+    }
+}
+```
+
+## Request Handling
+
+The Livewire Manager handles incoming AJAX requests:
+
+```php
+use Lyger\Http\Request;
+use Lyger\Livewire\Manager;
+
+// In your routes or middleware
+$request = Request::capture();
+
+if ($request->isLivewire()) {
+    return Manager::handle($request);
+}
+```
+
+<Info>
+The Manager automatically handles component instantiation, property updates, and method execution based on the request payload.
+</Info>
+
+## Best Practices
+
+<Steps>
+  <Step title="Keep Components Focused">
+    Each component should have a single responsibility. Break complex UIs into smaller, reusable components.
+  </Step>
+
+  <Step title="Use Public Properties Wisely">
+    Only make properties public if they need to be tracked and synced. Use protected/private for internal state.
+  </Step>
+
+  <Step title="Validate User Input">
+    Always validate data before processing, especially for security-sensitive operations.
+  </Step>
+
+  <Step title="Handle Errors Gracefully">
+    Use try-catch blocks and provide meaningful error messages to users.
+  </Step>
+
+  <Step title="Optimize Rendering">
+    Cache expensive computations and avoid unnecessary database queries in the render method.
+  </Step>
+</Steps>
+
+## API Reference
+
+### Component Methods
+
+| Method | Description |
+|--------|-------------|
+| `mount(...$params)` | Called when component is first created |
+| `render()` | Returns the component HTML (required) |
+| `getPublicProperties()` | Gets all public properties as array |
+| `callMethod($method, $params)` | Executes a component method |
+| `validate($rules, $messages)` | Validates component data |
+| `addError($field, $message)` | Adds validation error |
+| `reset(...$properties)` | Resets properties to default |
+| `emit($event, ...$params)` | Emits component event |
+| `emitUp($event, ...$params)` | Emits event to parent |
+| `dispatchBrowserEvent($event, $data)` | Dispatches browser event |
+| `redirect($url)` | Redirects to URL |
+| `user()` | Gets current authenticated user |
+| `isAuthenticated()` | Checks if user is authenticated |
+
+### Manager Methods
+
+| Method | Description |
+|--------|-------------|
+| `Manager::register($name, $class)` | Registers a component |
+| `Manager::get($name)` | Gets component instance |
+| `Manager::handle($request)` | Handles Livewire request |

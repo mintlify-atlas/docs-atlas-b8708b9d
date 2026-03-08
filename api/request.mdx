@@ -1,0 +1,506 @@
+---
+title: 'Request'
+description: 'HTTP request handling and input access'
+---
+
+## Overview
+
+The `Request` class provides a clean interface for accessing HTTP request data including query parameters, POST data, JSON payloads, headers, and server variables.
+
+<Note>
+The Request class automatically parses JSON request bodies when the Content-Type is `application/json`.
+</Note>
+
+## Constructor
+
+Create a new Request instance from global PHP variables.
+
+```php
+public function __construct()
+```
+
+### Example
+
+```php
+use Lyger\Http\Request;
+
+$request = new Request();
+```
+
+## Static Methods
+
+### capture
+
+Create a Request instance from the current HTTP request.
+
+```php
+public static function capture(): self
+```
+
+### Returns
+
+<ResponseField name="request" type="Request">
+New Request instance populated with current request data
+</ResponseField>
+
+### Example
+
+```php
+use Lyger\Http\Request;
+
+$request = Request::capture();
+```
+
+## Input Methods
+
+### get
+
+Retrieve a query string parameter from the URL.
+
+```php
+public function get(string $key, $default = null): mixed
+```
+
+<ParamField path="key" type="string" required>
+Query parameter name
+</ParamField>
+
+<ParamField path="default" type="mixed" default="null">
+Default value if parameter doesn't exist
+</ParamField>
+
+### Returns
+
+<ResponseField name="value" type="mixed">
+Query parameter value or default
+</ResponseField>
+
+### Example
+
+```php
+// URL: /users?page=2&limit=10
+$page = $request->get('page');        // "2"
+$limit = $request->get('limit');      // "10"
+$sort = $request->get('sort', 'asc'); // "asc" (default)
+```
+
+### post
+
+Retrieve a POST form parameter.
+
+```php
+public function post(string $key, $default = null): mixed
+```
+
+<ParamField path="key" type="string" required>
+POST parameter name
+</ParamField>
+
+<ParamField path="default" type="mixed" default="null">
+Default value if parameter doesn't exist
+</ParamField>
+
+### Returns
+
+<ResponseField name="value" type="mixed">
+POST parameter value or default
+</ResponseField>
+
+### Example
+
+```php
+// POST data: name=John&email=john@example.com
+$name = $request->post('name');     // "John"
+$email = $request->post('email');   // "john@example.com"
+$phone = $request->post('phone', ''); // "" (default)
+```
+
+### input
+
+Retrieve input from JSON body, POST, or GET (in that order of priority).
+
+```php
+public function input(string $key, $default = null): mixed
+```
+
+<ParamField path="key" type="string" required>
+Input parameter name
+</ParamField>
+
+<ParamField path="default" type="mixed" default="null">
+Default value if parameter doesn't exist
+</ParamField>
+
+### Returns
+
+<ResponseField name="value" type="mixed">
+Input parameter value or default
+</ResponseField>
+
+<Note>
+The `input()` method is the recommended way to retrieve data as it checks JSON body first, then POST, then GET parameters.
+</Note>
+
+### Example
+
+<Tabs>
+  <Tab title="JSON Request">
+    ```php
+    // Content-Type: application/json
+    // Body: {"name": "John", "email": "john@example.com"}
+    
+    $name = $request->input('name');   // "John"
+    $email = $request->input('email'); // "john@example.com"
+    ```
+  </Tab>
+
+  <Tab title="Form POST">
+    ```php
+    // POST data: name=Jane&email=jane@example.com
+    
+    $name = $request->input('name');   // "Jane"
+    $email = $request->input('email'); // "jane@example.com"
+    ```
+  </Tab>
+
+  <Tab title="Query String">
+    ```php
+    // URL: /users?filter=active
+    
+    $filter = $request->input('filter'); // "active"
+    ```
+  </Tab>
+</Tabs>
+
+### all
+
+Get all input data merged from GET, POST, and JSON body.
+
+```php
+public function all(): array
+```
+
+### Returns
+
+<ResponseField name="data" type="array">
+All request input as an associative array
+</ResponseField>
+
+### Example
+
+```php
+// URL: /users?page=1
+// POST: name=John
+// JSON: {"email": "john@example.com"}
+
+$data = $request->all();
+// [
+//     'page' => '1',
+//     'name' => 'John',
+//     'email' => 'john@example.com'
+// ]
+```
+
+### getJson
+
+Get the parsed JSON body if available.
+
+```php
+public function getJson(): ?array
+```
+
+### Returns
+
+<ResponseField name="json" type="array|null">
+Parsed JSON data or null if request body is not JSON
+</ResponseField>
+
+### Example
+
+```php
+// Content-Type: application/json
+// Body: {"user": {"name": "John", "age": 30}}
+
+$json = $request->getJson();
+if ($json !== null) {
+    $userName = $json['user']['name']; // "John"
+    $userAge = $json['user']['age'];   // 30
+}
+```
+
+## Request Information
+
+### method
+
+Get the HTTP request method.
+
+```php
+public function method(): string
+```
+
+### Returns
+
+<ResponseField name="method" type="string">
+HTTP method (GET, POST, PUT, DELETE, etc.)
+</ResponseField>
+
+### Example
+
+```php
+$method = $request->method(); // "GET", "POST", "PUT", etc.
+
+if ($request->method() === 'POST') {
+    // Handle POST request
+}
+```
+
+### uri
+
+Get the request URI path without query string.
+
+```php
+public function uri(): string
+```
+
+### Returns
+
+<ResponseField name="uri" type="string">
+Request URI path
+</ResponseField>
+
+### Example
+
+```php
+// Full URL: https://example.com/api/users?page=2
+$uri = $request->uri(); // "/api/users"
+```
+
+### ip
+
+Get the client's IP address.
+
+```php
+public function ip(): string
+```
+
+### Returns
+
+<ResponseField name="ip" type="string">
+Client IP address
+</ResponseField>
+
+### Example
+
+```php
+$clientIp = $request->ip(); // "192.168.1.100"
+
+// Log request
+error_log("Request from {$clientIp} to {$request->uri()}");
+```
+
+## Headers
+
+### header
+
+Get a specific HTTP header value.
+
+```php
+public function header(string $key, $default = null): mixed
+```
+
+<ParamField path="key" type="string" required>
+Header name (case-insensitive, automatically converted)
+</ParamField>
+
+<ParamField path="default" type="mixed" default="null">
+Default value if header doesn't exist
+</ParamField>
+
+### Returns
+
+<ResponseField name="value" type="mixed">
+Header value or default
+</ResponseField>
+
+<Note>
+Header names are automatically converted to the `HTTP_*` format. For example, `Content-Type` becomes `HTTP_CONTENT_TYPE`.
+</Note>
+
+### Example
+
+```php
+$contentType = $request->header('Content-Type');
+// "application/json"
+
+$auth = $request->header('Authorization');
+// "Bearer token123"
+
+$userAgent = $request->header('User-Agent');
+// "Mozilla/5.0 ..."
+
+$customHeader = $request->header('X-API-Key', 'default-key');
+```
+
+## Common Patterns
+
+### Validating Input
+
+```php
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+Route::post('/users', function(Request $request) {
+    $name = $request->input('name');
+    $email = $request->input('email');
+    
+    if (!$name || !$email) {
+        return Response::error('Name and email are required', 400);
+    }
+    
+    // Create user...
+    return Response::json(['created' => true], 201);
+});
+```
+
+### Handling JSON Requests
+
+```php
+Route::post('/api/data', function(Request $request) {
+    $json = $request->getJson();
+    
+    if ($json === null) {
+        return Response::error('Invalid JSON', 400);
+    }
+    
+    // Process JSON data
+    return Response::json(['received' => $json]);
+});
+```
+
+### Pagination with Query Parameters
+
+```php
+Route::get('/users', function(Request $request) {
+    $page = (int) $request->get('page', 1);
+    $limit = (int) $request->get('limit', 10);
+    $offset = ($page - 1) * $limit;
+    
+    // Fetch paginated users...
+    return Response::json([
+        'page' => $page,
+        'limit' => $limit,
+        'users' => $users
+    ]);
+});
+```
+
+### API Authentication
+
+```php
+Route::get('/api/protected', function(Request $request) {
+    $token = $request->header('Authorization');
+    
+    if (!$token || !str_starts_with($token, 'Bearer ')) {
+        return Response::error('Unauthorized', 401);
+    }
+    
+    $apiKey = substr($token, 7); // Remove "Bearer "
+    
+    // Validate API key...
+    return Response::json(['data' => 'protected']);
+});
+```
+
+### File Upload Information
+
+```php
+Route::post('/upload', function(Request $request) {
+    $contentType = $request->header('Content-Type');
+    $contentLength = $request->header('Content-Length');
+    
+    if (!str_contains($contentType, 'multipart/form-data')) {
+        return Response::error('Invalid content type', 400);
+    }
+    
+    // Handle file upload using $_FILES
+    return Response::json(['uploaded' => true]);
+});
+```
+
+### Request Logging
+
+```php
+Route::get('/api/{endpoint}', function(Request $request, $endpoint) {
+    $logEntry = sprintf(
+        "[%s] %s %s from %s",
+        date('Y-m-d H:i:s'),
+        $request->method(),
+        $request->uri(),
+        $request->ip()
+    );
+    
+    error_log($logEntry);
+    
+    // Handle request...
+    return Response::json(['endpoint' => $endpoint]);
+});
+```
+
+## Complete Example
+
+```php
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+use Lyger\Routing\Route;
+
+// Create user endpoint
+Route::post('/api/users', function(Request $request) {
+    // Check authentication
+    $apiKey = $request->header('X-API-Key');
+    if ($apiKey !== 'secret-key') {
+        return Response::error('Invalid API key', 401);
+    }
+    
+    // Get input data (works with JSON or form data)
+    $name = $request->input('name');
+    $email = $request->input('email');
+    $role = $request->input('role', 'user');
+    
+    // Validate required fields
+    if (!$name || !$email) {
+        return Response::error('Name and email are required', 400);
+    }
+    
+    // Log the request
+    $ip = $request->ip();
+    error_log("User creation request from {$ip}");
+    
+    // Create user (simulated)
+    $user = [
+        'id' => rand(1000, 9999),
+        'name' => $name,
+        'email' => $email,
+        'role' => $role,
+        'created_at' => date('Y-m-d H:i:s')
+    ];
+    
+    return Response::json([
+        'success' => true,
+        'user' => $user
+    ], 201);
+});
+
+// Get user with query parameters
+Route::get('/api/users', function(Request $request) {
+    $page = (int) $request->get('page', 1);
+    $search = $request->get('search', '');
+    
+    // Fetch users based on parameters...
+    
+    return Response::json([
+        'page' => $page,
+        'search' => $search,
+        'users' => []
+    ]);
+});
+```

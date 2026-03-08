@@ -1,0 +1,398 @@
+---
+title: make:controller
+description: Create a new controller class
+icon: file-code
+---
+
+The `make:controller` command generates a new controller class in the `App/Controllers` directory.
+
+## Syntax
+
+```bash
+php rawr make:controller <Name>
+```
+
+<ParamField path="Name" type="string" required>
+  The name of the controller class (use PascalCase)
+</ParamField>
+
+## Basic Usage
+
+Create a new controller:
+
+```bash
+php rawr make:controller UserController
+```
+
+**Output:**
+
+```
+Controller created: App/Controllers/UserController.php
+```
+
+## Generated File
+
+The command creates a controller with a default `index()` method:
+
+```php App/Controllers/UserController.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class UserController
+{
+    public function index(): Response
+    {
+        return Response::json(['message' => 'UserController controller']);
+    }
+}
+```
+
+<Info>
+All generated controllers use strict types and return typed `Response` objects for better code quality.
+</Info>
+
+## Controller Structure
+
+### Namespace
+
+Controllers are automatically namespaced under `App\Controllers`:
+
+```php
+namespace App\Controllers;
+```
+
+### Imports
+
+Default imports include:
+
+```php
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+```
+
+### Default Method
+
+Each controller includes an `index()` method that returns a JSON response:
+
+```php
+public function index(): Response
+{
+    return Response::json(['message' => 'UserController controller']);
+}
+```
+
+## Naming Conventions
+
+<Note>
+Controller names must follow these rules:
+- Use **PascalCase** (e.g., `UserController`, `ProductController`)
+- Start with a letter
+- Only contain alphanumeric characters and underscores
+- Conventionally end with `Controller` suffix
+</Note>
+
+### Valid Names
+
+```bash
+php rawr make:controller UserController
+php rawr make:controller ProductController
+php rawr make:controller Api_UserController
+php rawr make:controller DashboardController
+```
+
+### Invalid Names
+
+```bash
+php rawr make:controller user-controller  # Hyphens not allowed
+php rawr make:controller 1UserController  # Cannot start with number
+php rawr make:controller User Controller  # Spaces not allowed
+```
+
+## Validation
+
+The command validates the controller name:
+
+```php rawr (lines 187-190)
+if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $name)) {
+    echo "Error: Invalid controller name. Use PascalCase\n";
+    exit(1);
+}
+```
+
+## Error Handling
+
+### Missing Name
+
+```bash
+php rawr make:controller
+```
+
+**Output:**
+
+```
+Error: Controller name required
+```
+
+### Duplicate Controller
+
+```bash
+php rawr make:controller UserController
+# Run again
+php rawr make:controller UserController
+```
+
+**Output:**
+
+```
+Error: Controller UserController already exists
+```
+
+<Note>
+The command prevents overwriting existing controllers to protect your code.
+</Note>
+
+## Common Patterns
+
+### RESTful Controller
+
+Create a controller and add RESTful methods:
+
+```php App/Controllers/ProductController.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class ProductController
+{
+    // List all products
+    public function index(): Response
+    {
+        return Response::json(['products' => []]);
+    }
+    
+    // Show single product
+    public function show(int $id): Response
+    {
+        return Response::json(['product' => ['id' => $id]]);
+    }
+    
+    // Create new product
+    public function store(Request $request): Response
+    {
+        $data = $request->all();
+        return Response::json(['created' => true], 201);
+    }
+    
+    // Update product
+    public function update(Request $request, int $id): Response
+    {
+        $data = $request->all();
+        return Response::json(['updated' => true]);
+    }
+    
+    // Delete product
+    public function destroy(int $id): Response
+    {
+        return Response::json(['deleted' => true]);
+    }
+}
+```
+
+### API Controller
+
+Create an API controller with versioning:
+
+```php App/Controllers/ApiController.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class ApiController
+{
+    protected string $version = 'v1';
+    
+    public function index(): Response
+    {
+        return Response::json([
+            'version' => $this->version,
+            'endpoints' => [
+                '/api/users',
+                '/api/products',
+                '/api/orders'
+            ]
+        ]);
+    }
+}
+```
+
+### Form Controller
+
+Handle HTML form submissions:
+
+```php App/Controllers/ContactController.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class ContactController
+{
+    public function index(): Response
+    {
+        return Response::html('<form>...</form>');
+    }
+    
+    public function submit(Request $request): Response
+    {
+        $name = $request->input('name');
+        $email = $request->input('email');
+        $message = $request->input('message');
+        
+        // Process form data
+        
+        return Response::json([
+            'success' => true,
+            'message' => 'Contact form submitted'
+        ]);
+    }
+}
+```
+
+## Using Generated Controllers
+
+After creating a controller, register it in your routes:
+
+```php routes/web.php
+<?php
+
+use App\Controllers\UserController;
+
+$router->get('/users', [UserController::class, 'index']);
+$router->get('/users/{id}', [UserController::class, 'show']);
+$router->post('/users', [UserController::class, 'store']);
+```
+
+<Info>
+See the [Routing Guide](/routing/basic-routing) for complete routing documentation.
+</Info>
+
+## Workflow Example
+
+<CodeGroup>
+
+```bash Create Controller
+php rawr make:controller OrderController
+```
+
+```php Add Methods
+// App/Controllers/OrderController.php
+public function create(Request $request): Response
+{
+    $data = $request->all();
+    // Create order logic
+    return Response::json(['order_id' => 123], 201);
+}
+```
+
+```php Register Route
+// routes/api.php
+$router->post('/orders', [OrderController::class, 'create']);
+```
+
+```bash Test Endpoint
+curl -X POST http://localhost:8000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"product_id": 1, "quantity": 2}'
+```
+
+</CodeGroup>
+
+## Source Code
+
+The controller generation logic:
+
+```php rawr (lines 180-225)
+function makeController(string $basePath, ?string $name): void
+{
+    if ($name === null) {
+        echo "Error: Controller name required\n";
+        exit(1);
+    }
+
+    if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $name)) {
+        echo "Error: Invalid controller name. Use PascalCase\n";
+        exit(1);
+    }
+
+    $controllersPath = $basePath . '/App/Controllers';
+    if (!is_dir($controllersPath)) {
+        mkdir($controllersPath, 0755, true);
+    }
+
+    $targetPath = $controllersPath . '/' . $name . '.php';
+
+    if (file_exists($targetPath)) {
+        echo "Error: Controller {$name} already exists\n";
+        exit(1);
+    }
+
+    $content = <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use Lyger\Http\Request;
+use Lyger\Http\Response;
+
+class {$name}
+{
+    public function index(): Response
+    {
+        return Response::json(['message' => '{$name} controller']);
+    }
+}
+PHP;
+
+    file_put_contents($targetPath, $content);
+    echo "Controller created: App/Controllers/{$name}.php\n";
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Make Model" icon="database" href="/cli/make-model">
+    Create models to interact with database
+  </Card>
+  <Card title="Routing" icon="route" href="/routing/basic-routing">
+    Register controller routes
+  </Card>
+  <Card title="Request Handling" icon="inbox-in" href="/api/request">
+    Work with HTTP requests
+  </Card>
+  <Card title="Responses" icon="reply" href="/api/response">
+    Return different response types
+  </Card>
+</CardGroup>

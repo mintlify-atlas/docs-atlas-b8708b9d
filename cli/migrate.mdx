@@ -1,0 +1,511 @@
+---
+title: migrate
+description: Run database migrations
+icon: arrow-up
+---
+
+The `migrate` command executes all pending database migrations in your application.
+
+## Syntax
+
+```bash
+php rawr migrate
+```
+
+## Basic Usage
+
+Run all pending migrations:
+
+```bash
+php rawr migrate
+```
+
+**Output:**
+
+```
+Running migrations for: sqlite
+
+Running: 2026_03_08_143022_create_users_table
+Migrated: 2026_03_08_143022_create_users_table
+Running: 2026_03_08_143045_create_products_table
+Migrated: 2026_03_08_143045_create_products_table
+
+Migrations completed!
+```
+
+<Info>
+The migrate command only runs migrations that haven't been executed yet. Previously run migrations are tracked in the `migrations` table.
+</Info>
+
+## How It Works
+
+### 1. Database Connection
+
+The command reads your database configuration from `.env`:
+
+```env .env
+DB_CONNECTION=sqlite
+DB_DATABASE=database/database.sqlite
+```
+
+Supported databases:
+- **SQLite** - File-based database (default)
+- **PostgreSQL** - Advanced relational database
+- **MySQL** - Popular relational database
+- **MariaDB** - MySQL-compatible database
+
+### 2. Migration Tracking
+
+Lyger creates a `migrations` table to track which migrations have been run:
+
+```sql
+CREATE TABLE migrations (
+    id INTEGER PRIMARY KEY,
+    migration VARCHAR(255),
+    batch INTEGER
+)
+```
+
+### 3. Execution Order
+
+Migrations run in chronological order based on their timestamp prefix:
+
+```
+2026_03_08_143022_create_users_table.php      ← Runs first
+2026_03_08_143045_create_products_table.php   ← Runs second
+2026_03_08_144510_add_status_to_orders.php    ← Runs third
+```
+
+## Database Configuration
+
+### SQLite (Default)
+
+```env .env
+DB_CONNECTION=sqlite
+DB_DATABASE=database/database.sqlite
+```
+
+<Note>
+SQLite is perfect for development and small applications. No server setup required!
+</Note>
+
+### PostgreSQL
+
+```env .env
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=lyger
+DB_USERNAME=postgres
+DB_PASSWORD=secret
+```
+
+### MySQL
+
+```env .env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=lyger
+DB_USERNAME=root
+DB_PASSWORD=secret
+```
+
+## Migration Process
+
+### Initial Run
+
+First time running migrations:
+
+```bash
+php rawr migrate
+```
+
+**What happens:**
+
+1. Creates `migrations` table if it doesn't exist
+2. Scans `database/migrations/` directory
+3. Runs all migration files
+4. Records each migration in the `migrations` table
+
+### Subsequent Runs
+
+Running migrations again:
+
+```bash
+php rawr migrate
+```
+
+**What happens:**
+
+1. Checks `migrations` table for already-run migrations
+2. Skips migrations that have already been executed
+3. Only runs new migrations
+4. Updates the `migrations` table
+
+## Source Code
+
+The migration execution logic:
+
+```php rawr (lines 425-461)
+function migrate(string $basePath): void
+{
+    $config = getDatabaseConfig($basePath);
+    echo "Running migrations for: {$config['connection']}\n\n";
+
+    $migrationsPath = $basePath . '/database/migrations';
+    if (!is_dir($migrationsPath)) {
+        echo "No migrations folder found.\n";
+        return;
+    }
+
+    require_once $basePath . '/vendor/autoload.php';
+    require_once $basePath . '/Lyger/Database/Migration.php';
+
+    $files = glob($migrationsPath . '/*.php');
+    $ran = getRanMigrations($basePath, $config['connection']);
+
+    foreach ($files as $file) {
+        $class = basename($file, '.php');
+        if (in_array($class, $ran)) continue;
+
+        echo "Running: {$class}\n";
+        require_once $file;
+
+        preg_match('/class\s+(\w+)/', file_get_contents($file), $matches);
+        $className = $matches[1] ?? null;
+
+        if ($className && class_exists($className)) {
+            $migration = new $className();
+            $migration->up();
+            recordMigration($basePath, $class, $config['connection']);
+            echo "Migrated: {$class}\n";
+        }
+    }
+
+    echo "\nMigrations completed!\n";
+}
+```
+
+### Helper Functions
+
+**Get ran migrations:**
+
+```php rawr (lines 474-478)
+function getRanMigrations(string $basePath, string $db): array
+{
+    $pdo = getDbConnection($basePath, $db);
+    $pdo->exec("CREATE TABLE IF NOT EXISTS migrations (id INTEGER PRIMARY KEY, migration VARCHAR(255), batch INTEGER)");
+    return $pdo->query('SELECT migration FROM migrations')->fetchAll(\PDO::FETCH_COLUMN);
+}
+```
+
+**Record migration:**
+
+```php rawr (lines 480-485)
+function recordMigration(string $basePath, string $class, string $db): void
+{
+    $pdo = getDbConnection($basePath, $db);
+    $stmt = $pdo->prepare('INSERT INTO migrations (migration, batch) VALUES (?, 1)');
+    $stmt->execute([$class]);
+}
+```
+
+## Complete Workflow
+
+<CodeGroup>
+
+```bash Step 1: Create Migrations
+php rawr make:migration create_users_table
+php rawr make:migration create_posts_table
+```
+
+```php Step 2: Define Schema
+// database/migrations/..._create_users_table.php
+public function up(): void
+{
+    $this->getSchema()->create('users', function ($table) {
+        $table->id();
+        $table->string('name');
+        $table->string('email')->unique();
+        $table->string('password');
+        $table->timestamps();
+    });
+}
+```
+
+```bash Step 3: Run Migrations
+php rawr migrate
+```
+
+```bash Output
+Running migrations for: sqlite
+
+Running: 2026_03_08_143022_create_users_table
+Migrated: 2026_03_08_143022_create_users_table
+Running: 2026_03_08_143045_create_posts_table
+Migrated: 2026_03_08_143045_create_posts_table
+
+Migrations completed!
+```
+
+</CodeGroup>
+
+## Common Scenarios
+
+### Fresh Installation
+
+Setting up a new database:
+
+```bash
+# Create migrations
+php rawr make:migration create_users_table
+php rawr make:migration create_products_table
+php rawr make:migration create_orders_table
+
+# Run all migrations
+php rawr migrate
+```
+
+### Adding New Tables
+
+After initial setup:
+
+```bash
+# Create new migration
+php rawr make:migration create_categories_table
+
+# Run only the new migration
+php rawr migrate
+```
+
+**Output:**
+
+```
+Running migrations for: sqlite
+
+Running: 2026_03_08_150000_create_categories_table
+Migrated: 2026_03_08_150000_create_categories_table
+
+Migrations completed!
+```
+
+### Team Development
+
+When pulling changes with new migrations:
+
+```bash
+# Pull latest code
+git pull origin main
+
+# Run any new migrations
+php rawr migrate
+```
+
+## Related Commands
+
+### migrate:rollback
+
+Rollback the last migration batch:
+
+```bash
+php rawr migrate:rollback
+```
+
+<Note>
+Rollback functionality is being implemented. Currently shows:
+```
+Rolling back...
+```
+</Note>
+
+### migrate:status
+
+Check which migrations have been run:
+
+```bash
+php rawr migrate:status
+```
+
+**Output:**
+
+```
+Migration status for: sqlite
+```
+
+<Info>
+Full status display is in development and will show a table of all migrations with their run status.
+</Info>
+
+## Error Handling
+
+### No Migrations Folder
+
+```bash
+php rawr migrate
+```
+
+**Output:**
+
+```
+No migrations folder found.
+```
+
+**Solution:**
+
+```bash
+mkdir -p database/migrations
+php rawr make:migration create_users_table
+php rawr migrate
+```
+
+### Database Connection Error
+
+If database connection fails, check your `.env` file and ensure:
+
+- Database file exists (SQLite)
+- Database server is running (MySQL/PostgreSQL)
+- Credentials are correct
+- Database exists
+
+### Migration Error
+
+If a migration fails:
+
+1. Check the migration file for syntax errors
+2. Verify table/column names don't conflict
+3. Ensure foreign key constraints are valid
+4. Check database permissions
+
+## Best Practices
+
+<Note>
+**Do:**
+- Run migrations in development before committing
+- Test migrations can run on fresh database
+- Keep migrations in version control
+- Create migrations for all schema changes
+
+**Don't:**
+- Modify migrations after they've been run in production
+- Delete migration files
+- Skip migrations
+- Manually modify the migrations table
+</Note>
+
+## Production Considerations
+
+### Before Running Migrations
+
+1. **Backup your database**
+   ```bash
+   # SQLite
+   cp database/database.sqlite database/database.backup.sqlite
+   
+   # MySQL/PostgreSQL
+   mysqldump -u root -p lyger > backup.sql
+   ```
+
+2. **Test in staging environment**
+   ```bash
+   # Run migrations in staging first
+   php rawr migrate
+   ```
+
+3. **Review migration files**
+   ```bash
+   ls -la database/migrations/
+   ```
+
+### Running in Production
+
+```bash
+# Enable maintenance mode (if available)
+# Run migrations
+php rawr migrate
+
+# Verify tables
+# Disable maintenance mode
+```
+
+## Troubleshooting
+
+### Migrations Not Running
+
+Check if migrations have already been run:
+
+```bash
+php rawr migrate:status
+```
+
+### Duplicate Migration
+
+If you accidentally create a duplicate:
+
+1. Delete the newer migration file
+2. The older one will remain tracked in the database
+
+### Reset All Migrations
+
+<Warning>
+This will drop all tables and data!
+</Warning>
+
+```bash
+# Delete database file (SQLite)
+rm database/database.sqlite
+
+# Run migrations again
+php rawr migrate
+```
+
+## Example Migration Set
+
+Complete example for a blog application:
+
+<CodeGroup>
+
+```bash Create Migrations
+php rawr make:migration create_users_table
+php rawr make:migration create_categories_table
+php rawr make:migration create_posts_table
+php rawr make:migration create_comments_table
+```
+
+```bash Run All Migrations
+php rawr migrate
+```
+
+```bash Expected Output
+Running migrations for: sqlite
+
+Running: 2026_03_08_100000_create_users_table
+Migrated: 2026_03_08_100000_create_users_table
+Running: 2026_03_08_100001_create_categories_table
+Migrated: 2026_03_08_100001_create_categories_table
+Running: 2026_03_08_100002_create_posts_table
+Migrated: 2026_03_08_100002_create_posts_table
+Running: 2026_03_08_100003_create_comments_table
+Migrated: 2026_03_08_100003_create_comments_table
+
+Migrations completed!
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Make Migration" icon="plus" href="/cli/make-migration">
+    Create new migration files
+  </Card>
+  <Card title="Make Model" icon="database" href="/cli/make-model">
+    Create models for your tables
+  </Card>
+  <Card title="Schema Builder" icon="table-columns" href="/api/schema">
+    Learn about available schema methods
+  </Card>
+  <Card title="Seeding" icon="seedling" href="/database/migrations">
+    Populate tables with test data
+  </Card>
+</CardGroup>

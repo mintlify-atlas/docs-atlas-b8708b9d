@@ -1,0 +1,471 @@
+---
+title: 'Eloquent Models'
+description: 'Work with database records using the elegant Eloquent ORM'
+---
+
+## Introduction
+
+Eloquent is Lyger's implementation of the Active Record pattern, providing an elegant and expressive way to interact with your database. Each database table has a corresponding Model class that is used to interact with that table.
+
+## Defining Models
+
+### Basic Model Definition
+
+Create a model by extending the `Lyger\Database\Model` class:
+
+```php app/Models/User.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class User extends Model
+{
+    protected string $table = 'users';
+    protected string $primaryKey = 'id';
+    protected array $fillable = ['name', 'email', 'password'];
+    protected array $hidden = ['password'];
+    protected bool $timestamps = true;
+}
+```
+
+<Note>
+  If you don't specify a `$table` property, Eloquent will automatically use the lowercase, pluralized class name (e.g., `User` becomes `users`).
+</Note>
+
+## Model Properties
+
+### Table Name
+
+```php
+// Explicitly set table name
+protected string $table = 'users';
+```
+
+### Primary Key
+
+```php
+// Default is 'id'
+protected string $primaryKey = 'id';
+
+// Custom primary key
+protected string $primaryKey = 'user_id';
+```
+
+### Fillable Attributes
+
+Define which attributes can be mass-assigned:
+
+```php
+protected array $fillable = ['name', 'email', 'password', 'status'];
+```
+
+<Warning>
+  Only attributes listed in `$fillable` can be set via `create()` or `fill()` methods. This protects against mass-assignment vulnerabilities.
+</Warning>
+
+### Hidden Attributes
+
+Hide attributes when converting to array or JSON:
+
+```php
+protected array $hidden = ['password', 'secret_token'];
+```
+
+### Timestamps
+
+```php
+// Enable automatic timestamp management (default: true)
+protected bool $timestamps = true;
+
+// Disable timestamps
+protected bool $timestamps = false;
+```
+
+When enabled, Eloquent automatically manages `created_at` and `updated_at` columns.
+
+### Attribute Casting
+
+Cast attributes to specific types:
+
+```php
+protected array $casts = [
+    'id' => 'int',
+    'email_verified' => 'bool',
+    'price' => 'float',
+    'options' => 'array',
+    'metadata' => 'json',
+    'published_at' => 'datetime'
+];
+```
+
+Supported casts: `int`, `integer`, `float`, `double`, `bool`, `boolean`, `string`, `array`, `json`, `datetime`, `date`
+
+## Retrieving Models
+
+### Find by Primary Key
+
+```php
+// Find by ID (returns null if not found)
+$user = User::find(1);
+
+// Find or throw exception
+$user = User::findOrFail(1); // Throws RuntimeException if not found
+```
+
+### Retrieving All Records
+
+```php
+$users = User::all();
+
+foreach ($users as $user) {
+    echo $user->name;
+}
+```
+
+### Using Query Builder Methods
+
+All Query Builder methods are available on models:
+
+```php
+// Where clauses
+$activeUsers = User::query()
+    ->where('status', '=', 'active')
+    ->get();
+
+// Ordering
+$recentUsers = User::query()
+    ->latest('created_at')
+    ->limit(10)
+    ->get();
+
+// Multiple conditions
+$admins = User::query()
+    ->where('role', '=', 'admin')
+    ->whereNotNull('email_verified_at')
+    ->orderBy('name', 'ASC')
+    ->get();
+```
+
+## Creating Models
+
+### Using Create Method
+
+```php
+$user = User::create([
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'password' => password_hash('secret', PASSWORD_DEFAULT)
+]);
+```
+
+### Using Save Method
+
+```php
+$user = new User();
+$user->name = 'Jane Doe';
+$user->email = 'jane@example.com';
+$user->password = password_hash('secret', PASSWORD_DEFAULT);
+$user->save();
+```
+
+### Using Fill Method
+
+```php
+$user = new User();
+$user->fill([
+    'name' => 'Bob Smith',
+    'email' => 'bob@example.com'
+]);
+$user->password = password_hash('secret', PASSWORD_DEFAULT);
+$user->save();
+```
+
+<Note>
+  The `create()` and `fill()` methods only work with attributes listed in the `$fillable` property.
+</Note>
+
+## Updating Models
+
+### Update Using Save
+
+```php
+$user = User::find(1);
+$user->name = 'Updated Name';
+$user->email = 'newemail@example.com';
+$user->save();
+```
+
+### Mass Update via Query
+
+```php
+User::query()
+    ->where('status', '=', 'pending')
+    ->update(['status' => 'active']);
+```
+
+## Deleting Models
+
+### Delete Single Model
+
+```php
+$user = User::find(1);
+$user->delete();
+```
+
+### Delete via Query
+
+```php
+User::query()
+    ->where('status', '=', 'inactive')
+    ->where('last_login', '<', date('Y-m-d', strtotime('-1 year')))
+    ->delete();
+```
+
+## Accessing Attributes
+
+### Magic Properties
+
+```php
+$user = User::find(1);
+
+// Get attributes
+echo $user->name;
+echo $user->email;
+
+// Set attributes
+$user->name = 'New Name';
+$user->status = 'active';
+```
+
+### Array Access
+
+```php
+// Check if attribute exists
+if (isset($user->email)) {
+    echo $user->email;
+}
+
+// Unset attribute
+unset($user->temporary_field);
+```
+
+## Serialization
+
+### To Array
+
+```php
+$user = User::find(1);
+$array = $user->toArray();
+
+// Hidden attributes are excluded
+// Casted attributes are converted to their target types
+```
+
+### To JSON
+
+```php
+$user = User::find(1);
+$json = $user->toJson();
+
+// Or with options
+$json = $user->toJson(JSON_PRETTY_PRINT);
+```
+
+## Collections
+
+Eloquent returns a `Collection` instance for multi-record results:
+
+```php
+$users = User::all();
+
+// Collection methods
+$count = $users->count();
+$first = $users->first();
+$last = $users->last();
+$isEmpty = $users->isEmpty();
+
+// Map over collection
+$names = $users->map(fn($user) => $user->name);
+
+// Filter collection
+$admins = $users->filter(fn($user) => $user->role === 'admin');
+
+// Pluck specific attribute
+$emails = $users->pluck('email');
+
+// Where on collection
+$active = $users->where('status', '=', 'active');
+
+// Sort collection
+$sorted = $users->sortBy('name');
+$sortedDesc = $users->sortByDesc('created_at');
+
+// Take first N items
+$topTen = $users->take(10);
+
+// Convert to array/JSON
+$array = $users->toArray();
+$json = $users->toJson();
+```
+
+## Model Methods
+
+### Getting the Primary Key
+
+```php
+$user = User::find(1);
+$id = $user->getKey(); // Returns primary key value
+$keyName = $user->getPrimaryKey(); // Returns 'id'
+```
+
+### Getting the Table Name
+
+```php
+$tableName = $user->getTableName();
+// Or statically
+$tableName = User::getTable();
+```
+
+## Complete Example
+
+Here's a comprehensive example demonstrating Eloquent usage:
+
+```php app/Models/Post.php
+<?php
+
+namespace App\Models;
+
+use Lyger\Database\Model;
+
+class Post extends Model
+{
+    protected string $table = 'posts';
+    
+    protected array $fillable = [
+        'title',
+        'slug',
+        'content',
+        'status',
+        'user_id',
+        'published_at'
+    ];
+    
+    protected array $hidden = [
+        'deleted_at'
+    ];
+    
+    protected array $casts = [
+        'id' => 'int',
+        'user_id' => 'int',
+        'published' => 'bool',
+        'published_at' => 'datetime',
+        'metadata' => 'json'
+    ];
+    
+    protected bool $timestamps = true;
+}
+```
+
+```php
+use App\Models\Post;
+
+// Create a new post
+$post = Post::create([
+    'title' => 'Getting Started with Lyger',
+    'slug' => 'getting-started-with-lyger',
+    'content' => 'Lyger is a modern PHP framework...',
+    'status' => 'published',
+    'user_id' => 1,
+    'published_at' => date('Y-m-d H:i:s')
+]);
+
+// Find and update
+$post = Post::find(1);
+$post->title = 'Updated Title';
+$post->save();
+
+// Query posts
+$publishedPosts = Post::query()
+    ->where('status', '=', 'published')
+    ->whereNotNull('published_at')
+    ->latest('published_at')
+    ->limit(10)
+    ->get();
+
+// Iterate over collection
+foreach ($publishedPosts as $post) {
+    echo "{$post->title} - {$post->published_at}\n";
+}
+
+// Get draft posts
+$drafts = Post::query()
+    ->where('status', '=', 'draft')
+    ->where('user_id', '=', $userId)
+    ->orderBy('created_at', 'DESC')
+    ->get();
+
+// Count posts
+$totalPosts = Post::query()->count();
+$publishedCount = Post::query()
+    ->where('status', '=', 'published')
+    ->count();
+
+// Delete old drafts
+Post::query()
+    ->where('status', '=', 'draft')
+    ->where('created_at', '<', date('Y-m-d', strtotime('-30 days')))
+    ->delete();
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Mass Assignment Protection">
+    Always define `$fillable` to protect against mass-assignment vulnerabilities:
+
+    ```php
+    protected array $fillable = ['name', 'email', 'status'];
+    ```
+  </Step>
+
+  <Step title="Hide Sensitive Data">
+    Use `$hidden` to exclude sensitive attributes from arrays and JSON:
+
+    ```php
+    protected array $hidden = ['password', 'api_token'];
+    ```
+  </Step>
+
+  <Step title="Use Type Casting">
+    Cast attributes to appropriate types for better type safety:
+
+    ```php
+    protected array $casts = [
+        'id' => 'int',
+        'active' => 'bool',
+        'options' => 'array'
+    ];
+    ```
+  </Step>
+
+  <Step title="Enable Timestamps">
+    Let Eloquent manage timestamps automatically:
+
+    ```php
+    protected bool $timestamps = true;
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Relationships" icon="link" href="/database/relationships">
+    Define relationships between your models
+  </Card>
+  <Card title="Query Builder" icon="code" href="/database/query-builder">
+    Learn more about the underlying Query Builder
+  </Card>
+</CardGroup>

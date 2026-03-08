@@ -1,0 +1,539 @@
+---
+title: make:model
+description: Create a new model class
+icon: database
+---
+
+The `make:model` command generates a new model class in the `App/Models` directory with optional migration.
+
+## Syntax
+
+```bash
+php rawr make:model <Name> [--migration]
+```
+
+<ParamField path="Name" type="string" required>
+  The name of the model class (use PascalCase, singular)
+</ParamField>
+
+<ParamField path="--migration" type="flag">
+  Automatically create a migration file for the model
+</ParamField>
+
+## Basic Usage
+
+Create a new model:
+
+```bash
+php rawr make:model User
+```
+
+**Output:**
+
+```
+Model created: App/Models/User.php
+```
+
+## With Migration
+
+Create a model and migration together:
+
+```bash
+php rawr make:model Product --migration
+```
+
+**Output:**
+
+```
+Model created: App/Models/Product.php
+Migration created: database/migrations/2026_03_08_143022_create_products_table.php
+```
+
+<Info>
+Using the `--migration` flag automatically generates both the model and a matching migration file, saving you time.
+</Info>
+
+## Generated Model
+
+The command creates a model that extends Lyger's base `Model` class:
+
+```php App/Models/User.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Lyger\Database\Model as BaseModel;
+
+class User extends BaseModel
+{
+    protected string $table = 'users';
+    protected array $fillable = [];
+}
+```
+
+### Table Name Convention
+
+The table name is automatically derived from the model name using snake_case pluralization:
+
+| Model Name | Generated Table Name |
+|------------|---------------------|
+| `User` | `users` |
+| `Product` | `products` |
+| `BlogPost` | `blog_posts` |
+| `OrderItem` | `order_items` |
+
+```php rawr (line 246)
+$tableName = strtolower(preg_replace('/(?<!^)[A-Z]/', '_', $name)) . 's';
+```
+
+## Model Properties
+
+### $table
+
+Specifies the database table for the model:
+
+```php
+protected string $table = 'users';
+```
+
+<Note>
+You can override this if your table name doesn't follow the convention.
+</Note>
+
+### $fillable
+
+Defines which attributes can be mass-assigned:
+
+```php
+protected array $fillable = ['name', 'email', 'password'];
+```
+
+This protects against mass-assignment vulnerabilities:
+
+```php
+// Safe - only fillable attributes are assigned
+$user = new User(['name' => 'John', 'email' => 'john@example.com']);
+```
+
+## Naming Conventions
+
+<Note>
+Model names should:
+- Use **PascalCase** (e.g., `User`, `Product`, `BlogPost`)
+- Be **singular** (the table will be automatically pluralized)
+- Represent a single entity or record
+</Note>
+
+### Valid Names
+
+```bash
+php rawr make:model User
+php rawr make:model Product
+php rawr make:model BlogPost
+php rawr make:model OrderItem
+```
+
+### Invalid Names
+
+```bash
+php rawr make:model Users        # Should be singular (User)
+php rawr make:model user         # Should use PascalCase (User)
+php rawr make:model user-model   # No hyphens allowed
+```
+
+## Error Handling
+
+### Missing Name
+
+```bash
+php rawr make:model
+```
+
+**Output:**
+
+```
+Error: Model name required
+```
+
+### Duplicate Model
+
+```bash
+php rawr make:model User
+# Run again
+php rawr make:model User
+```
+
+**Output:**
+
+```
+Error: Model User already exists
+```
+
+## Complete Example
+
+Create a model with all common properties:
+
+<CodeGroup>
+
+```bash Command
+php rawr make:model Product --migration
+```
+
+```php App/Models/Product.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Lyger\Database\Model as BaseModel;
+
+class Product extends BaseModel
+{
+    protected string $table = 'products';
+    
+    protected array $fillable = [
+        'name',
+        'description',
+        'price',
+        'stock',
+        'category_id'
+    ];
+    
+    // Relationships
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
+    
+    public function orders()
+    {
+        return $this->belongsToMany(Order::class);
+    }
+    
+    // Accessors
+    public function getFormattedPriceAttribute(): string
+    {
+        return '$' . number_format($this->price, 2);
+    }
+    
+    // Scopes
+    public function scopeInStock($query)
+    {
+        return $query->where('stock', '>', 0);
+    }
+}
+```
+
+```php Generated Migration
+<?php
+
+declare(strict_types=1);
+
+use Lyger\Database\Migration;
+
+class CreateProductsTable extends Migration
+{
+    public function up(): void
+    {
+        $this->getSchema()->create('products', function ($table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->decimal('price', 10, 2);
+            $table->integer('stock')->default(0);
+            $table->foreignId('category_id')->constrained();
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        $this->getSchema()->drop('products');
+    }
+}
+```
+
+</CodeGroup>
+
+## Common Patterns
+
+### User Model
+
+```php App/Models/User.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Lyger\Database\Model as BaseModel;
+
+class User extends BaseModel
+{
+    protected string $table = 'users';
+    
+    protected array $fillable = [
+        'name',
+        'email',
+        'password'
+    ];
+    
+    protected array $hidden = [
+        'password',
+        'remember_token'
+    ];
+    
+    // Hash password before saving
+    public function setPasswordAttribute(string $value): void
+    {
+        $this->attributes['password'] = password_hash($value, PASSWORD_DEFAULT);
+    }
+    
+    // Relationships
+    public function posts()
+    {
+        return $this->hasMany(Post::class);
+    }
+}
+```
+
+### Pivot Model
+
+For many-to-many relationships:
+
+```bash
+php rawr make:model OrderProduct
+```
+
+```php App/Models/OrderProduct.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Lyger\Database\Model as BaseModel;
+
+class OrderProduct extends BaseModel
+{
+    protected string $table = 'order_product';
+    
+    protected array $fillable = [
+        'order_id',
+        'product_id',
+        'quantity',
+        'price'
+    ];
+    
+    public $timestamps = false;
+}
+```
+
+### Polymorphic Model
+
+For polymorphic relationships:
+
+```bash
+php rawr make:model Comment
+```
+
+```php App/Models/Comment.php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Lyger\Database\Model as BaseModel;
+
+class Comment extends BaseModel
+{
+    protected string $table = 'comments';
+    
+    protected array $fillable = [
+        'content',
+        'commentable_id',
+        'commentable_type'
+    ];
+    
+    public function commentable()
+    {
+        return $this->morphTo();
+    }
+}
+```
+
+## Using Models
+
+After creating a model, you can use it to interact with the database:
+
+### Create Records
+
+```php
+use App\Models\Product;
+
+// Create a new product
+$product = new Product();
+$product->name = 'Laptop';
+$product->price = 999.99;
+$product->save();
+
+// Or use mass assignment
+$product = Product::create([
+    'name' => 'Laptop',
+    'price' => 999.99
+]);
+```
+
+### Query Records
+
+```php
+// Find by ID
+$product = Product::find(1);
+
+// Get all products
+$products = Product::all();
+
+// Query with conditions
+$expensive = Product::where('price', '>', 500)->get();
+
+// Use scopes
+$inStock = Product::inStock()->get();
+```
+
+### Update Records
+
+```php
+$product = Product::find(1);
+$product->price = 899.99;
+$product->save();
+
+// Or update directly
+Product::where('id', 1)->update(['price' => 899.99]);
+```
+
+### Delete Records
+
+```php
+$product = Product::find(1);
+$product->delete();
+
+// Or delete directly
+Product::where('price', '<', 10)->delete();
+```
+
+## Source Code
+
+The model generation logic:
+
+```php rawr (lines 227-270)
+function makeModel(string $basePath, ?string $name, bool $withMigration = false): void
+{
+    if ($name === null) {
+        echo "Error: Model name required\n";
+        exit(1);
+    }
+
+    $modelsPath = $basePath . '/App/Models';
+    if (!is_dir($modelsPath)) {
+        mkdir($modelsPath, 0755, true);
+    }
+
+    $modelPath = $modelsPath . '/' . $name . '.php';
+
+    if (file_exists($modelPath)) {
+        echo "Error: Model {$name} already exists\n";
+        exit(1);
+    }
+
+    $tableName = strtolower(preg_replace('/(?<!^)[A-Z]/', '_', $name)) . 's';
+
+    $content = <<<PHP
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Lyger\Database\Model as BaseModel;
+
+class {$name} extends BaseModel
+{
+    protected string \$table = '{$tableName}';
+    protected array \$fillable = [];
+}
+PHP;
+
+    file_put_contents($modelPath, $content);
+    echo "Model created: App/Models/{$name}.php\n";
+
+    if ($withMigration) {
+        makeMigration($basePath, 'create_' . $tableName . '_table');
+    }
+}
+```
+
+## Workflow Example
+
+<CodeGroup>
+
+```bash Step 1: Create Model
+php rawr make:model Order --migration
+```
+
+```php Step 2: Define Fillable
+// App/Models/Order.php
+protected array $fillable = [
+    'user_id',
+    'total',
+    'status'
+];
+```
+
+```php Step 3: Define Migration
+// database/migrations/..._create_orders_table.php
+public function up(): void
+{
+    $this->getSchema()->create('orders', function ($table) {
+        $table->id();
+        $table->foreignId('user_id')->constrained();
+        $table->decimal('total', 10, 2);
+        $table->string('status')->default('pending');
+        $table->timestamps();
+    });
+}
+```
+
+```bash Step 4: Run Migration
+php rawr migrate
+```
+
+```php Step 5: Use Model
+$order = Order::create([
+    'user_id' => 1,
+    'total' => 149.99,
+    'status' => 'completed'
+]);
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Make Migration" icon="table" href="/cli/make-migration">
+    Create database migrations
+  </Card>
+  <Card title="Eloquent ORM" icon="gem" href="/database/eloquent-models">
+    Learn about the ORM features
+  </Card>
+  <Card title="Relationships" icon="link" href="/database/relationships">
+    Define model relationships
+  </Card>
+  <Card title="Query Builder" icon="magnifying-glass" href="/database/query-builder">
+    Build complex queries
+  </Card>
+</CardGroup>

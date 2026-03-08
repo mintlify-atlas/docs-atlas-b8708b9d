@@ -1,0 +1,688 @@
+---
+title: 'Events'
+description: 'Event dispatching and listening system for decoupled application architecture'
+---
+
+## Overview
+
+The Lyger Events system provides a robust event dispatching mechanism with support for listeners, wildcards, and broadcasting. Build decoupled applications by emitting and listening to events throughout your codebase.
+
+## Class: `Lyger\Events\Event`
+
+Abstract base class for all events in your application.
+
+### Creating an Event
+
+```php
+use Lyger\Events\Event;
+
+class UserRegistered extends Event
+{
+    public function __construct(
+        public int $userId,
+        public string $email,
+        public string $name
+    ) {}
+}
+```
+
+### getName()
+
+Gets the event name based on the class name.
+
+<ResponseField name="return" type="string">
+  The short class name (e.g., "UserRegistered")
+</ResponseField>
+
+```php
+public function getName(): string
+```
+
+**Example:**
+
+```php
+$event = new UserRegistered(123, 'john@example.com', 'John');
+echo $event->getName();  // "UserRegistered"
+```
+
+### getPayload()
+
+Gets the event data as an array.
+
+<ResponseField name="return" type="array">
+  Array representation of the event object
+</ResponseField>
+
+```php
+public function getPayload(): array
+```
+
+**Example:**
+
+```php
+$event = new UserRegistered(123, 'john@example.com', 'John');
+$payload = $event->getPayload();
+// Returns: ['userId' => 123, 'email' => 'john@example.com', 'name' => 'John']
+```
+
+## EventDispatcher
+
+The `EventDispatcher` manages event listeners and dispatches events to registered handlers.
+
+### listen()
+
+Registers an event listener.
+
+<ParamField path="event" type="string" required>
+  Event name or wildcard pattern (e.g., "User*")
+</ParamField>
+
+<ParamField path="listener" type="callable" required>
+  Callback function to handle the event
+</ParamField>
+
+```php
+public static function listen(string $event, callable $listener): void
+```
+
+**Examples:**
+
+```php
+use Lyger\Events\EventDispatcher;
+
+// Listen to specific event
+EventDispatcher::listen('UserRegistered', function($event, $payload) {
+    sendWelcomeEmail($event->email);
+});
+
+// Listen with wildcard
+EventDispatcher::listen('User*', function($event, $payload) {
+    logUserActivity($event);
+});
+
+// Listen to all events
+EventDispatcher::listen('*', function($event, $payload) {
+    logAllEvents($event->getName());
+});
+```
+
+### dispatch()
+
+Dispatches an event to all registered listeners.
+
+<ParamField path="event" type="Event" required>
+  The event instance to dispatch
+</ParamField>
+
+<ParamField path="payload" type="array">
+  Additional payload data
+</ParamField>
+
+<ResponseField name="return" type="array">
+  Array of results from all listeners
+</ResponseField>
+
+```php
+public static function dispatch(Event $event, array $payload = []): array
+```
+
+**Example:**
+
+```php
+use Lyger\Events\EventDispatcher;
+
+// Dispatch event
+$event = new UserRegistered(123, 'john@example.com', 'John');
+$results = EventDispatcher::dispatch($event);
+
+// With additional payload
+$results = EventDispatcher::dispatch($event, [
+    'ip_address' => '192.168.1.1',
+    'user_agent' => 'Mozilla/5.0...',
+]);
+```
+
+### hasListeners()
+
+Checks if an event has any listeners.
+
+<ParamField path="event" type="string" required>
+  Event name
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if event has listeners
+</ResponseField>
+
+```php
+public static function hasListeners(string $event): bool
+```
+
+**Example:**
+
+```php
+if (EventDispatcher::hasListeners('UserRegistered')) {
+    echo "UserRegistered has listeners";
+}
+```
+
+### getListenerCount()
+
+Gets the number of listeners for an event.
+
+<ParamField path="event" type="string" required>
+  Event name
+</ParamField>
+
+<ResponseField name="return" type="int">
+  Number of listeners (includes wildcard matches)
+</ResponseField>
+
+```php
+public static function getListenerCount(string $event): int
+```
+
+**Example:**
+
+```php
+$count = EventDispatcher::getListenerCount('UserRegistered');
+echo "UserRegistered has {$count} listeners";
+```
+
+### clear()
+
+Removes all event listeners.
+
+```php
+public static function clear(): void
+```
+
+**Example:**
+
+```php
+// Clear all listeners (useful in testing)
+EventDispatcher::clear();
+```
+
+### clearEvent()
+
+Removes listeners for a specific event.
+
+<ParamField path="event" type="string" required>
+  Event name to clear
+</ParamField>
+
+```php
+public static function clearEvent(string $event): void
+```
+
+**Example:**
+
+```php
+// Remove all UserRegistered listeners
+EventDispatcher::clearEvent('UserRegistered');
+```
+
+## Wildcard Patterns
+
+The event system supports wildcard patterns for flexible event matching.
+
+### Pattern Matching
+
+<Tabs>
+  <Tab title="Exact Match">
+    ```php
+    // Listen to specific event
+    EventDispatcher::listen('UserRegistered', function($event) {
+        // Only fires for UserRegistered
+    });
+    ```
+  </Tab>
+  <Tab title="Wildcard Prefix">
+    ```php
+    // Listen to all User events
+    EventDispatcher::listen('User*', function($event) {
+        // Fires for: UserRegistered, UserUpdated, UserDeleted
+    });
+    ```
+  </Tab>
+  <Tab title="Wildcard Suffix">
+    ```php
+    // Listen to all Registered events
+    EventDispatcher::listen('*Registered', function($event) {
+        // Fires for: UserRegistered, ProductRegistered
+    });
+    ```
+  </Tab>
+  <Tab title="Match All">
+    ```php
+    // Listen to all events
+    EventDispatcher::listen('*', function($event) {
+        // Fires for every event
+    });
+    ```
+  </Tab>
+</Tabs>
+
+**Dotted Patterns:**
+
+```php
+// Listen to namespace patterns
+EventDispatcher::listen('App.User.*', function($event) {
+    // Matches: App.User.Created, App.User.Updated
+});
+
+EventDispatcher::listen('*.Created', function($event) {
+    // Matches: User.Created, Product.Created, Order.Created
+});
+```
+
+## Broadcaster
+
+The `Broadcaster` class enables event broadcasting to different channels.
+
+### channel()
+
+Registers a broadcast channel.
+
+<ParamField path="name" type="string" required>
+  Channel name or pattern
+</ParamField>
+
+<ParamField path="callback" type="callable" required>
+  Handler for broadcasts to this channel
+</ParamField>
+
+```php
+public static function channel(string $name, callable $callback): void
+```
+
+**Example:**
+
+```php
+use Lyger\Events\Broadcaster;
+
+// Register WebSocket channel
+Broadcaster::channel('websocket', function($event) {
+    broadcastToWebSocket($event->getName(), $event->getPayload());
+});
+
+// Register email notification channel
+Broadcaster::channel('email', function($event) {
+    sendEmailNotification($event);
+});
+```
+
+### broadcast()
+
+Broadcasts an event to a channel.
+
+<ParamField path="channel" type="string" required>
+  Channel name
+</ParamField>
+
+<ParamField path="event" type="Event" required>
+  Event to broadcast
+</ParamField>
+
+```php
+public static function broadcast(string $channel, Event $event): void
+```
+
+**Example:**
+
+```php
+$event = new OrderPlaced(456, 99.99);
+
+// Broadcast to specific channel
+Broadcaster::broadcast('websocket', $event);
+
+// Broadcast to multiple channels
+Broadcaster::broadcast('email', $event);
+Broadcaster::broadcast('sms', $event);
+```
+
+## EventServiceProvider
+
+Abstract base class for registering events and listeners in a structured way.
+
+### Creating a Service Provider
+
+```php
+use Lyger\Events\EventServiceProvider;
+use Lyger\Events\EventDispatcher;
+
+class AppEventServiceProvider extends EventServiceProvider
+{
+    public function register(): void
+    {
+        // Register user events
+        $this->listen('UserRegistered', [$this, 'sendWelcomeEmail']);
+        $this->listen('UserRegistered', [$this, 'createUserProfile']);
+
+        // Register order events
+        $this->listen('OrderPlaced', [$this, 'processPayment']);
+        $this->listen('OrderPlaced', [$this, 'notifyWarehouse']);
+
+        // Wildcard listeners
+        $this->listen('User*', [$this, 'logUserActivity']);
+    }
+
+    protected function sendWelcomeEmail($event): void
+    {
+        // Send email...
+    }
+
+    protected function createUserProfile($event): void
+    {
+        // Create profile...
+    }
+
+    protected function processPayment($event): void
+    {
+        // Process payment...
+    }
+
+    protected function notifyWarehouse($event): void
+    {
+        // Notify warehouse...
+    }
+
+    protected function logUserActivity($event): void
+    {
+        // Log activity...
+    }
+}
+
+// Bootstrap
+$provider = new AppEventServiceProvider();
+$provider->register();
+```
+
+## Complete Examples
+
+### User Management System
+
+```php
+use Lyger\Events\Event;
+use Lyger\Events\EventDispatcher;
+
+// Define events
+class UserRegistered extends Event
+{
+    public function __construct(
+        public int $userId,
+        public string $email,
+        public string $name
+    ) {}
+}
+
+class UserUpdated extends Event
+{
+    public function __construct(
+        public int $userId,
+        public array $changes
+    ) {}
+}
+
+class UserDeleted extends Event
+{
+    public function __construct(
+        public int $userId
+    ) {}
+}
+
+// Register listeners
+EventDispatcher::listen('UserRegistered', function($event) {
+    // Send welcome email
+    sendEmail($event->email, 'Welcome to our platform!');
+});
+
+EventDispatcher::listen('UserRegistered', function($event) {
+    // Create default profile
+    createProfile($event->userId);
+});
+
+EventDispatcher::listen('User*', function($event) {
+    // Log all user events
+    logActivity($event->getName(), $event->getPayload());
+});
+
+// Dispatch events
+$event = new UserRegistered(123, 'john@example.com', 'John Doe');
+EventDispatcher::dispatch($event);
+```
+
+### E-commerce Order System
+
+```php
+class OrderPlaced extends Event
+{
+    public function __construct(
+        public int $orderId,
+        public int $userId,
+        public float $total,
+        public array $items
+    ) {}
+}
+
+class OrderShipped extends Event
+{
+    public function __construct(
+        public int $orderId,
+        public string $trackingNumber
+    ) {}
+}
+
+class OrderCancelled extends Event
+{
+    public function __construct(
+        public int $orderId,
+        public string $reason
+    ) {}
+}
+
+// Order event handlers
+EventDispatcher::listen('OrderPlaced', function($event) {
+    // Process payment
+    processPayment($event->orderId, $event->total);
+});
+
+EventDispatcher::listen('OrderPlaced', function($event) {
+    // Update inventory
+    foreach ($event->items as $item) {
+        decrementInventory($item['id'], $item['quantity']);
+    }
+});
+
+EventDispatcher::listen('OrderPlaced', function($event) {
+    // Send confirmation email
+    sendOrderConfirmation($event->userId, $event->orderId);
+});
+
+EventDispatcher::listen('OrderShipped', function($event) {
+    // Send tracking email
+    sendTrackingInfo($event->orderId, $event->trackingNumber);
+});
+
+EventDispatcher::listen('OrderCancelled', function($event) {
+    // Refund payment
+    refundPayment($event->orderId);
+});
+
+// Dispatch
+$order = new OrderPlaced(789, 123, 99.99, [
+    ['id' => 1, 'quantity' => 2],
+    ['id' => 2, 'quantity' => 1],
+]);
+
+EventDispatcher::dispatch($order);
+```
+
+### Application Logging System
+
+```php
+class ErrorOccurred extends Event
+{
+    public function __construct(
+        public string $message,
+        public string $level,
+        public array $context
+    ) {}
+}
+
+class RequestReceived extends Event
+{
+    public function __construct(
+        public string $method,
+        public string $uri,
+        public string $ip
+    ) {}
+}
+
+// Global logging
+EventDispatcher::listen('*', function($event) {
+    file_put_contents('events.log', json_encode([
+        'event' => $event->getName(),
+        'payload' => $event->getPayload(),
+        'time' => time(),
+    ]) . "\n", FILE_APPEND);
+});
+
+// Error handling
+EventDispatcher::listen('ErrorOccurred', function($event) {
+    if ($event->level === 'critical') {
+        notifyAdmins($event->message);
+    }
+});
+
+// Request logging
+EventDispatcher::listen('RequestReceived', function($event) {
+    logRequest($event->method, $event->uri, $event->ip);
+});
+
+// Dispatch
+EventDispatcher::dispatch(new ErrorOccurred(
+    'Database connection failed',
+    'critical',
+    ['database' => 'mysql']
+));
+```
+
+### Broadcasting Example
+
+```php
+use Lyger\Events\Broadcaster;
+
+// Setup broadcast channels
+Broadcaster::channel('websocket', function($event) {
+    $ws = new WebSocketClient('ws://localhost:8080');
+    $ws->send(json_encode([
+        'event' => $event->getName(),
+        'data' => $event->getPayload(),
+    ]));
+});
+
+Broadcaster::channel('redis', function($event) {
+    $redis = new Redis();
+    $redis->connect('127.0.0.1', 6379);
+    $redis->publish('events', json_encode($event->getPayload()));
+});
+
+// Broadcast events
+class MessageSent extends Event
+{
+    public function __construct(
+        public int $userId,
+        public string $message
+    ) {}
+}
+
+$event = new MessageSent(123, 'Hello World!');
+
+// Send to WebSocket clients
+Broadcaster::broadcast('websocket', $event);
+
+// Publish to Redis
+Broadcaster::broadcast('redis', $event);
+```
+
+## Advanced Patterns
+
+### Event Queueing
+
+```php
+class QueuedEvent extends Event
+{
+    public function __construct(
+        public Event $event,
+        public int $delay = 0
+    ) {}
+}
+
+EventDispatcher::listen('QueuedEvent', function($event) {
+    $queue = new Queue();
+    $queue->push($event->event, $event->delay);
+});
+
+// Usage
+$userEvent = new UserRegistered(123, 'john@example.com', 'John');
+EventDispatcher::dispatch(new QueuedEvent($userEvent, 60)); // Delay 60s
+```
+
+### Conditional Listeners
+
+```php
+EventDispatcher::listen('OrderPlaced', function($event) {
+    // Only notify for large orders
+    if ($event->total > 1000) {
+        notifyManager($event->orderId);
+    }
+});
+```
+
+### Listener Priority
+
+```php
+// High priority listener (runs first)
+EventDispatcher::listen('UserRegistered', function($event) {
+    validateUser($event->userId);
+});
+
+// Normal priority listeners
+EventDispatcher::listen('UserRegistered', function($event) {
+    sendEmail($event->email);
+});
+```
+
+<Note>
+Listeners are called in the order they are registered. Register critical listeners first for proper execution order.
+</Note>
+
+## Best Practices
+
+1. **Event Naming**: Use past tense for event names (e.g., `UserRegistered` not `UserRegister`)
+2. **Immutability**: Make event properties readonly to prevent modification
+3. **Payload Size**: Keep event payloads small - include IDs, not entire objects
+4. **Error Handling**: Wrap listener code in try-catch to prevent cascade failures
+5. **Testing**: Use `EventDispatcher::clear()` between tests to avoid listener pollution
+
+```php
+// Good event design
+class UserRegistered extends Event
+{
+    public function __construct(
+        public readonly int $userId,      // ID only
+        public readonly string $email     // Essential data
+    ) {}
+}
+
+// Listeners handle their own errors
+EventDispatcher::listen('UserRegistered', function($event) {
+    try {
+        sendWelcomeEmail($event->email);
+    } catch (\Exception $e) {
+        logError($e->getMessage());
+    }
+});
+```
